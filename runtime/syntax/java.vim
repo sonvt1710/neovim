@@ -3,7 +3,7 @@
 " Maintainer:		Aliaksei Budavei <0x000c70 AT gmail DOT com>
 " Former Maintainer:	Claudio Fleiner <claudio@fleiner.com>
 " Repository:		https://github.com/zzzyxwvut/java-vim.git
-" Last Change:		2024 May 10
+" Last Change:		2024 Jun 08
 
 " Please check :help java.vim for comments on some of the options available.
 
@@ -215,7 +215,7 @@ syn keyword javaLabelVarType	contained var
 syn keyword javaLabelCastType	contained char byte short int
 " Allow for the contingency of the enclosing region not being able to
 " _keep_ its _end_, e.g. case ':':.
-syn region  javaLabelWhenClause	contained transparent matchgroup=javaLabel start="\<when\>" matchgroup=NONE end=":"me=e-1 end="->"me=e-2 contains=TOP,javaExternal
+syn region  javaLabelWhenClause	contained transparent matchgroup=javaLabel start="\<when\>" matchgroup=NONE end=":"me=e-1 end="->"me=e-2 contains=TOP,javaExternal,javaLambdaDef
 syn match   javaLabelNumber	contained "\<0\>[lL]\@!"
 syn match   javaLabelNumber	contained "\<\%(0\%([xX]\x\%(_*\x\)*\|_*\o\%(_*\o\)*\|[bB][01]\%(_*[01]\)*\)\|[1-9]\%(_*\d\)*\)\>[lL]\@!"
 hi def link javaLabelDefault	javaLabel
@@ -348,7 +348,6 @@ if exists("java_highlight_functions")
     exec 'syn region javaFuncDef start=/' . s:ff.Engine('\%#=2', '') . '^\s\+\%(\%(@\%(\K\k*\.\)*\K\k*\>\)\s\+\)*\%(p\%(ublic\|rotected\|rivate\)\s\+\)\=\%(\%(abstract\|default\)\s\+\|\%(\%(final\|\%(native\|strictfp\)\|s\%(tatic\|ynchronized\)\)\s\+\)*\)\=\%(<.*[[:space:]-]\@' . s:ff.Peek('1', '') . '<!>\s\+\)\=\%(void\|\%(b\%(oolean\|yte\)\|char\|short\|int\|long\|float\|double\|\%(\<\K\k*\>\.\)*\<' . s:ff.UpperCase('[$_[:upper:]]', '[^a-z0-9]') . '\k*\>\%(<[^(){}]*[[:space:]-]\@' . s:ff.Peek('1', '') . '<!>\)\=\)\%(\[\]\)*\)\s\+\<' . s:ff.LowerCase('[$_[:lower:]]', '[^A-Z0-9]') . '\k*\>\s*(/ end=/)/ skip=/\/\*.\{-}\*\/\|\/\/.*$/ contains=@javaFuncParams'
   endif
 
-  exec 'syn match javaLambdaDef "\<\K\k*\>\%(\<default\>\)\@' . s:ff.Peek('7', '') . '<!\s*->"'
   syn match javaBraces "[{}]"
 endif
 
@@ -421,9 +420,26 @@ syn match   javaParenError	 "\]"
 
 hi def link javaParenError	javaError
 
+" Lambda expressions (JLS-17, §15.27).
 if exists("java_highlight_functions")
   " Make ()-matching definitions after the parenthesis error catcher.
-  exec 'syn match javaLambdaDef "\k\@' . s:ff.Peek('4', '') . '<!(\%(\k\|[[:space:]<>?\[\]@,.]\)*)\s*->"'
+  "
+  " Match: ([@A [@B ...] final] var a[, var b, ...]) ->
+  "	| ([@A [@B ...] final] T[<α>][[][]] a[, T b, ...]) ->
+  " There is no recognition of expressions interspersed with comments
+  " or of expressions whose parameterised parameter types are written
+  " across multiple lines.
+  exec 'syn match javaLambdaDef "\k\@' . s:ff.Peek('4', '') . '<!([[:space:]\n]*\%(\%(@\%(\K\k*\.\)*\K\k*\>\%((\_.\{-1,})\)\{-,1}[[:space:]\n]\+\)*\%(final[[:space:]\n]\+\)\=\%(\<\K\k*\>\.\)*\<\K\k*\>\%(<[^(){}]*[[:space:]-]\@' . s:ff.Peek('1', '') . '<!>\)\=\%(\%(\%(\[\]\)\+\|\.\.\.\)\)\=[[:space:]\n]\+\<\K\k*\>\%(\[\]\)*\%(,[[:space:]\n]*\)\=\)\+)[[:space:]\n]*->" contains=javaAnnotation,javaParamModifier,javaLambdaVarType,javaType,@javaClasses,javaVarArg'
+  " Match: () ->
+  "	| (a[, b, ...]) ->
+  exec 'syn match javaLambdaDef "\k\@' . s:ff.Peek('4', '') . '<!([[:space:]\n]*\%(\<\K\k*\>\%(,[[:space:]\n]*\)\=\)*)[[:space:]\n]*->"'
+  " Match: a ->
+  exec 'syn match javaLambdaDef "\<\K\k*\>\%(\<default\>\)\@' . s:ff.Peek('7', '') . '<![[:space:]\n]*->"'
+
+  syn keyword javaParamModifier contained final
+  hi def link javaParamModifier javaConceptKind
+  syn keyword javaLambdaVarType contained var
+  hi def link javaLambdaVarType javaOperator
 endif
 
 " The @javaTop cluster comprises non-contained Java syntax groups.

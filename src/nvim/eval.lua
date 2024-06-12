@@ -19,7 +19,7 @@
 --- @field returns_desc? string
 --- @field signature? string
 --- @field desc? string
---- @field params {[1]:string, [2]:string, [3]:string}[]
+--- @field params [string, string, string][]
 --- @field lua? false Do not render type information
 --- @field tags? string[] Extra tags
 --- @field data? string Used by gen_eval.lua
@@ -2133,6 +2133,7 @@ M.funcs = {
     name = 'exepath',
     params = { { 'expr', 'any' } },
     signature = 'exepath({expr})',
+    returns = 'string',
   },
   exists = {
     args = 1,
@@ -3447,7 +3448,7 @@ M.funcs = {
       <
     ]=],
     name = 'getchar',
-    params = {},
+    params = { { 'expr', '0|1' } },
     returns = 'integer',
     signature = 'getchar([{expr}])',
   },
@@ -3536,7 +3537,7 @@ M.funcs = {
       result is converted to a string.
     ]=],
     name = 'getcharstr',
-    params = {},
+    params = { { 'expr', '0|1' } },
     returns = 'string',
     signature = 'getcharstr([{expr}])',
   },
@@ -4046,8 +4047,9 @@ M.funcs = {
 
     ]=],
     name = 'getmarklist',
-    params = { { 'buf', 'any' } },
+    params = { { 'buf', 'integer?' } },
     signature = 'getmarklist([{buf}])',
+    returns = 'vim.fn.getmarklist.ret.item[]',
   },
   getmatches = {
     args = { 0, 1 },
@@ -4370,14 +4372,14 @@ M.funcs = {
       The optional argument {opts} is a Dict and supports the
       following items:
 
-      	type		Specify the region's selection type
-      			(default: "v"):
-      	    "v"		for |charwise| mode
-      	    "V"		for |linewise| mode
-      	    "<CTRL-V>"	for |blockwise-visual| mode
+      	type		Specify the region's selection type.
+      			See |getregtype()| for possible values,
+      			except that the width can be omitted
+      			and an empty string cannot be used.
+      			(default: "v")
 
       	exclusive	If |TRUE|, use exclusive selection
-      			for the end position
+      			for the end position.
       			(default: follow 'selection')
 
       You can get the last selection type by |visualmode()|.
@@ -4413,6 +4415,46 @@ M.funcs = {
     params = { { 'pos1', 'table' }, { 'pos2', 'table' }, { 'opts', 'table' } },
     returns = 'string[]',
     signature = 'getregion({pos1}, {pos2} [, {opts}])',
+  },
+  getregionpos = {
+    args = { 2, 3 },
+    base = 1,
+    desc = [=[
+      Same as |getregion()|, but returns a list of positions
+      describing the buffer text segments bound by {pos1} and
+      {pos2}.
+      The segments are a pair of positions for every line: >
+      	[[{start_pos}, {end_pos}], ...]
+      <
+      The position is a |List| with four numbers:
+          [bufnum, lnum, col, off]
+      "bufnum" is the buffer number.
+      "lnum" and "col" are the position in the buffer.  The first
+      column is 1.
+      If the "off" number of a starting position is non-zero, it is
+      the offset in screen columns from the start of the character.
+      E.g., a position within a <Tab> or after the last character.
+      If the "off" number of an ending position is non-zero, it is
+      the offset of the character's first cell not included in the
+      selection, otherwise all its cells are included.
+
+      Apart from the options supported by |getregion()|, {opts} also
+      supports the following:
+
+      	eol		If |TRUE|, indicate positions beyond
+      			the end of a line with "col" values
+      			one more than the length of the line.
+      			If |FALSE|, positions are limited
+      			within their lines, and if a line is
+      			empty or the selection is entirely
+      			beyond the end of a line, a "col"
+      			value of 0 is used for both positions.
+      			(default: |FALSE|)
+    ]=],
+    name = 'getregionpos',
+    params = { { 'pos1', 'table' }, { 'pos2', 'table' }, { 'opts', 'table' } },
+    returns = 'integer[][][]',
+    signature = 'getregionpos({pos1}, {pos2} [, {opts}])',
   },
   getregtype = {
     args = { 0, 1 },
@@ -6440,7 +6482,8 @@ M.funcs = {
       	echo printf("Operator-pending mode bit: 0x%x", op_bit)
     ]],
     name = 'maplist',
-    params = {},
+    params = { { 'abbr', '0|1' } },
+    returns = 'table[]',
     signature = 'maplist([{abbr}])',
   },
   mapnew = {
@@ -9101,7 +9144,16 @@ M.funcs = {
       <
     ]=],
     name = 'searchpair',
-    params = {},
+    params = {
+      { 'start', 'any' },
+      { 'middle', 'any' },
+      { 'end', 'any' },
+      { 'flags', 'string' },
+      { 'skip', 'any' },
+      { 'stopline', 'any' },
+      { 'timeout', 'integer' },
+    },
+    returns = 'integer',
     signature = 'searchpair({start}, {middle}, {end} [, {flags} [, {skip} [, {stopline} [, {timeout}]]]])',
   },
   searchpairpos = {
@@ -9118,7 +9170,16 @@ M.funcs = {
       See |match-parens| for a bigger and more useful example.
     ]=],
     name = 'searchpairpos',
-    params = {},
+    params = {
+      { 'start', 'any' },
+      { 'middle', 'any' },
+      { 'end', 'any' },
+      { 'flags', 'string' },
+      { 'skip', 'any' },
+      { 'stopline', 'any' },
+      { 'timeout', 'integer' },
+    },
+    returns = '[integer, integer]',
     signature = 'searchpairpos({start}, {middle}, {end} [, {flags} [, {skip} [, {stopline} [, {timeout}]]]])',
   },
   searchpos = {
@@ -11631,7 +11692,7 @@ M.funcs = {
     ]=],
     name = 'synconcealed',
     params = { { 'lnum', 'integer' }, { 'col', 'integer' } },
-    returns = '{[1]: integer, [2]: string, [3]: integer}',
+    returns = '[integer, string, integer]',
     signature = 'synconcealed({lnum}, {col})',
   },
   synstack = {

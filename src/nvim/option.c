@@ -44,6 +44,7 @@
 #include "nvim/decoration_provider.h"
 #include "nvim/diff.h"
 #include "nvim/drawscreen.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
 #include "nvim/eval/vars.h"
@@ -235,11 +236,11 @@ static void set_init_default_backupskip(void)
           == NULL) {
         ga_grow(&ga, (int)len);
         if (!GA_EMPTY(&ga)) {
-          STRCAT(ga.ga_data, ",");
+          strcat(ga.ga_data, ",");
         }
-        STRCAT(ga.ga_data, p);
+        strcat(ga.ga_data, p);
         add_pathsep(ga.ga_data);
-        STRCAT(ga.ga_data, "*");
+        strcat(ga.ga_data, "*");
         ga.ga_len += (int)len;
       }
       xfree(item);
@@ -346,7 +347,7 @@ void set_init_1(bool clean_arg)
   const size_t backupdir_len = strlen(backupdir);
   backupdir = xrealloc(backupdir, backupdir_len + 3);
   memmove(backupdir + 2, backupdir, backupdir_len + 1);
-  memmove(backupdir, ".,", 2);
+  memmove(backupdir, S_LEN(".,"));
   set_string_default(kOptBackupdir, backupdir, true);
   set_string_default(kOptViewdir, stdpaths_user_state_subpath("view", 2, true),
                      true);
@@ -1003,10 +1004,10 @@ static set_op_T get_op(const char *arg)
 
 static set_prefix_T get_option_prefix(char **argp)
 {
-  if (strncmp(*argp, "no", 2) == 0) {
+  if (strncmp(*argp, S_LEN("no")) == 0) {
     *argp += 2;
     return PREFIX_NO;
-  } else if (strncmp(*argp, "inv", 3) == 0) {
+  } else if (strncmp(*argp, S_LEN("inv")) == 0) {
     *argp += 3;
     return PREFIX_INV;
   }
@@ -1425,7 +1426,7 @@ int do_set(char *arg, int opt_flags)
     did_show = true;
   } else {
     while (*arg != NUL) {         // loop to process all options
-      if (strncmp(arg, "all", 3) == 0 && !ASCII_ISALPHA(arg[3])
+      if (strncmp(arg, S_LEN("all")) == 0 && !ASCII_ISALPHA(arg[3])
           && !(opt_flags & OPT_MODELINE)) {
         // ":set all"  show all options.
         // ":set all&" set all options to their default value.
@@ -2770,7 +2771,7 @@ static void do_spelllang_source(win_T *win)
   char *q = win->w_s->b_p_spl;
 
   // Skip the first name if it is "cjk".
-  if (strncmp(q, "cjk,", 4) == 0) {
+  if (strncmp(q, S_LEN("cjk,")) == 0) {
     q += 4;
   }
 
@@ -4569,6 +4570,8 @@ void *get_varp_scope_from(vimoption_T *p, int scope, buf_T *buf, win_T *win)
       return &(buf->b_p_def);
     case PV_INC:
       return &(buf->b_p_inc);
+    case PV_COT:
+      return &(buf->b_p_cot);
     case PV_DICT:
       return &(buf->b_p_dict);
     case PV_TSR:
@@ -4652,6 +4655,8 @@ void *get_varp_from(vimoption_T *p, buf_T *buf, win_T *win)
     return *buf->b_p_def != NUL ? &(buf->b_p_def) : p->var;
   case PV_INC:
     return *buf->b_p_inc != NUL ? &(buf->b_p_inc) : p->var;
+  case PV_COT:
+    return *buf->b_p_cot != NUL ? &(buf->b_p_cot) : p->var;
   case PV_DICT:
     return *buf->b_p_dict != NUL ? &(buf->b_p_dict) : p->var;
   case PV_TSR:
@@ -5331,6 +5336,8 @@ void buf_copy_options(buf_T *buf, int flags)
       buf->b_p_inc = empty_string_option;
       buf->b_p_inex = xstrdup(p_inex);
       COPY_OPT_SCTX(buf, BV_INEX);
+      buf->b_p_cot = empty_string_option;
+      buf->b_cot_flags = 0;
       buf->b_p_dict = empty_string_option;
       buf->b_p_tsr = empty_string_option;
       buf->b_p_tsrfu = empty_string_option;
@@ -5443,11 +5450,11 @@ void set_context_in_set_cmd(expand_T *xp, char *arg, int opt_flags)
     }
     p--;
   }
-  if (strncmp(p, "no", 2) == 0) {
+  if (strncmp(p, S_LEN("no")) == 0) {
     xp->xp_context = EXPAND_BOOL_SETTINGS;
     xp->xp_prefix = XP_PREFIX_NO;
     p += 2;
-  } else if (strncmp(p, "inv", 3) == 0) {
+  } else if (strncmp(p, S_LEN("inv")) == 0) {
     xp->xp_context = EXPAND_BOOL_SETTINGS;
     xp->xp_prefix = XP_PREFIX_INV;
     p += 3;
@@ -5642,7 +5649,7 @@ void set_context_in_set_cmd(expand_T *xp, char *arg, int opt_flags)
   // manually handle it here to make sure we have the correct xp_context set.
   // for 'spellsuggest' start at "file:"
   if (options[opt_idx].var == &p_sps) {
-    if (strncmp(xp->xp_pattern, "file:", 5) == 0) {
+    if (strncmp(xp->xp_pattern, S_LEN("file:")) == 0) {
       xp->xp_pattern += 5;
       return;
     } else if (options[expand_option_idx].opt_expand_cb != NULL) {
@@ -6074,16 +6081,16 @@ int fill_culopt_flags(char *val, win_T *wp)
   }
   while (*p != NUL) {
     // Note: Keep this in sync with p_culopt_values.
-    if (strncmp(p, "line", 4) == 0) {
+    if (strncmp(p, S_LEN("line")) == 0) {
       p += 4;
       culopt_flags_new |= CULOPT_LINE;
-    } else if (strncmp(p, "both", 4) == 0) {
+    } else if (strncmp(p, S_LEN("both")) == 0) {
       p += 4;
       culopt_flags_new |= CULOPT_LINE | CULOPT_NBR;
-    } else if (strncmp(p, "number", 6) == 0) {
+    } else if (strncmp(p, S_LEN("number")) == 0) {
       p += 6;
       culopt_flags_new |= CULOPT_NBR;
-    } else if (strncmp(p, "screenline", 10) == 0) {
+    } else if (strncmp(p, S_LEN("screenline")) == 0) {
       p += 10;
       culopt_flags_new |= CULOPT_SCRLINE;
     }
@@ -6131,8 +6138,8 @@ int option_set_callback_func(char *optval, Callback *optcb)
 
   typval_T *tv;
   if (*optval == '{'
-      || (strncmp(optval, "function(", 9) == 0)
-      || (strncmp(optval, "funcref(", 8) == 0)) {
+      || (strncmp(optval, S_LEN("function(")) == 0)
+      || (strncmp(optval, S_LEN("funcref(")) == 0)) {
     // Lambda expression or a funcref
     tv = eval_expr(optval, NULL);
     if (tv == NULL) {
@@ -6185,10 +6192,10 @@ bool can_bs(int what)
   return vim_strchr(p_bs, what) != NULL;
 }
 
-/// Get the local or global value of 'backupcopy'.
+/// Get the local or global value of 'backupcopy' flags.
 ///
 /// @param buf The buffer.
-unsigned get_bkc_value(buf_T *buf)
+unsigned get_bkc_flags(buf_T *buf)
 {
   return buf->b_bkc_flags ? buf->b_bkc_flags : bkc_flags;
 }
@@ -6204,7 +6211,7 @@ char *get_flp_value(buf_T *buf)
   return buf->b_p_flp;
 }
 
-/// Get the local or global value of the 'virtualedit' flags.
+/// Get the local or global value of 'virtualedit' flags.
 unsigned get_ve_flags(win_T *wp)
 {
   return (wp->w_ve_flags ? wp->w_ve_flags : ve_flags) & ~(VE_NONE | VE_NONEU);

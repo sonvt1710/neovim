@@ -8,6 +8,7 @@
 
 #include "nvim/ascii_defs.h"
 #include "nvim/charset.h"
+#include "nvim/errors.h"
 #include "nvim/eval/typval_defs.h"
 #include "nvim/eval/vars.h"
 #include "nvim/gettext_defs.h"
@@ -903,7 +904,7 @@ char *replace_termcodes(const char *const from, const size_t from_len, char **co
     }
     // Check for special <> keycodes, like "<C-S-LeftMouse>"
     if (do_special && ((flags & REPTERM_DO_LT) || ((end - src) >= 3
-                                                   && strncmp(src, "<lt>", 4) != 0))) {
+                                                   && strncmp(src, S_LEN("<lt>")) != 0))) {
       // Change <SID>Func to K_SNR <script-nr> _Func.  This name is used
       // for script-local user functions.
       // (room: 5 * 6 = 30 bytes; needed: 3 + <nr> + 1 <= 14)

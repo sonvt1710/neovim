@@ -22,6 +22,7 @@
 #include "nvim/cursor_shape.h"
 #include "nvim/decoration_provider.h"
 #include "nvim/drawscreen.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval_defs.h"
 #include "nvim/eval/vars.h"
@@ -369,7 +370,7 @@ static const char *highlight_init_light[] = {
   "SpellLocal           guisp=NvimDarkGreen  gui=undercurl                   cterm=undercurl",
   "SpellRare            guisp=NvimDarkCyan   gui=undercurl                   cterm=undercurl",
   "StatusLine           guifg=NvimLightGrey3 guibg=NvimDarkGrey3             cterm=reverse",
-  "StatusLineNC         guifg=NvimDarkGrey3  guibg=NvimLightGrey3            cterm=bold",
+  "StatusLineNC         guifg=NvimDarkGrey3  guibg=NvimLightGrey3            cterm=bold,underline",
   "Title                guifg=NvimDarkGrey2                        gui=bold  cterm=bold",
   "Visual                                    guibg=NvimLightGrey4            ctermfg=15 ctermbg=0",
   "WarningMsg           guifg=NvimDarkYellow                                 ctermfg=3",
@@ -454,7 +455,7 @@ static const char *highlight_init_dark[] = {
   "SpellLocal           guisp=NvimLightGreen  gui=undercurl                 cterm=undercurl",
   "SpellRare            guisp=NvimLightCyan   gui=undercurl                 cterm=undercurl",
   "StatusLine           guifg=NvimDarkGrey3   guibg=NvimLightGrey3          cterm=reverse",
-  "StatusLineNC         guifg=NvimLightGrey3  guibg=NvimDarkGrey3           cterm=bold",
+  "StatusLineNC         guifg=NvimLightGrey3  guibg=NvimDarkGrey3           cterm=bold,underline",
   "Title                guifg=NvimLightGrey2                       gui=bold cterm=bold",
   "Visual                                     guibg=NvimDarkGrey4           ctermfg=0 ctermbg=15",
   "WarningMsg           guifg=NvimLightYellow                               ctermfg=11",
@@ -1056,7 +1057,7 @@ void do_highlight(const char *line, const bool forceit, const bool init)
     }
 
     int from_id = syn_check_group(from_start, (size_t)(from_end - from_start));
-    if (strncmp(to_start, "NONE", 4) == 0) {
+    if (strncmp(to_start, S_LEN("NONE")) == 0) {
       to_id = 0;
     } else {
       to_id = syn_check_group(to_start, (size_t)(to_end - to_start));
@@ -1173,7 +1174,7 @@ void do_highlight(const char *line, const bool forceit, const bool init)
         break;
       }
       vim_memcpy_up(key, key_start, key_len);
-      key[key_len] = '\0';
+      key[key_len] = NUL;
       linep = skipwhite(linep);
 
       if (strcmp(key, "NONE") == 0) {
@@ -1966,7 +1967,7 @@ int syn_name2id_len(const char *name, size_t len)
   // Avoid using stricmp() too much, it's slow on some systems
   // Avoid alloc()/free(), these are slow too.
   vim_memcpy_up(name_u, name, len);
-  name_u[len] = '\0';
+  name_u[len] = NUL;
 
   // map_get(..., int) returns 0 when no key is present, which is
   // the expected value for missing highlight group.

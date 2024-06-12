@@ -399,7 +399,7 @@ void *vim_findfile_init(char *path, char *filename, char *stopdirs, int level, i
         emsg(_(e_path_too_long_for_completion));
         break;
       }
-      if (strncmp(wc_part, "**", 2) == 0) {
+      if (strncmp(wc_part, S_LEN("**")) == 0) {
         ff_expand_buffer[len++] = *wc_part++;
         ff_expand_buffer[len++] = *wc_part++;
 
@@ -451,7 +451,7 @@ void *vim_findfile_init(char *path, char *filename, char *stopdirs, int level, i
     STRCPY(buf, ff_expand_buffer);
     STRCPY(buf + eb_len, search_ctx->ffsc_fix_path);
     if (os_isdir(buf)) {
-      STRCAT(ff_expand_buffer, search_ctx->ffsc_fix_path);
+      strcat(ff_expand_buffer, search_ctx->ffsc_fix_path);
       add_pathsep(ff_expand_buffer);
     } else {
       char *p = path_tail(search_ctx->ffsc_fix_path);
@@ -462,7 +462,7 @@ void *vim_findfile_init(char *path, char *filename, char *stopdirs, int level, i
       if (p > search_ctx->ffsc_fix_path) {
         // do not add '..' to the path and start upwards searching
         len = (int)(p - search_ctx->ffsc_fix_path) - 1;
-        if ((len >= 2 && strncmp(search_ctx->ffsc_fix_path, "..", 2) == 0)
+        if ((len >= 2 && strncmp(search_ctx->ffsc_fix_path, S_LEN("..")) == 0)
             && (len == 2 || search_ctx->ffsc_fix_path[2] == PATHSEP)) {
           xfree(buf);
           goto error_return;
@@ -479,7 +479,7 @@ void *vim_findfile_init(char *path, char *filename, char *stopdirs, int level, i
                        + strlen(search_ctx->ffsc_fix_path + len)
                        + 1);
         STRCPY(temp, search_ctx->ffsc_fix_path + len);
-        STRCAT(temp, search_ctx->ffsc_wc_path);
+        strcat(temp, search_ctx->ffsc_wc_path);
         xfree(search_ctx->ffsc_wc_path);
         xfree(wc_path);
         search_ctx->ffsc_wc_path = temp;
@@ -505,24 +505,36 @@ error_return:
 /// @return  the stopdir string.  Check that ';' is not escaped.
 char *vim_findfile_stopdir(char *buf)
 {
-  char *r_ptr = buf;
-
-  while (*r_ptr != NUL && *r_ptr != ';') {
-    if (r_ptr[0] == '\\' && r_ptr[1] == ';') {
-      // Overwrite the escape char,
-      // use strlen(r_ptr) to move the trailing '\0'.
-      STRMOVE(r_ptr, r_ptr + 1);
-      r_ptr++;
+  for (; *buf != NUL && *buf != ';' && (buf[0] != '\\' || buf[1] != ';'); buf++) {}
+  char *dst = buf;
+  if (*buf == ';') {
+    goto is_semicolon;
+  }
+  if (*buf == NUL) {
+    goto is_nul;
+  }
+  goto start;
+  while (*buf != NUL && *buf != ';') {
+    if (buf[0] == '\\' && buf[1] == ';') {
+start:
+      // Overwrite the escape char.
+      *dst++ = ';';
+      buf += 2;
+    } else {
+      *dst++ = *buf++;
     }
-    r_ptr++;
   }
-  if (*r_ptr == ';') {
-    *r_ptr = 0;
-    r_ptr++;
-  } else if (*r_ptr == NUL) {
-    r_ptr = NULL;
+  assert(dst < buf);
+  *dst = NUL;
+  if (*buf == ';') {
+is_semicolon:
+    *buf = NUL;
+    buf++;
+  } else {  // if (*buf == NUL)
+is_nul:
+    buf = NULL;
   }
-  return r_ptr;
+  return buf;
 }
 
 /// Clean up the given search context. Can handle a NULL pointer.
@@ -669,7 +681,7 @@ char *vim_findfile(void *search_ctx_arg)
           ff_free_stack_element(stackp);
           goto fail;
         }
-        STRCAT(file_path, stackp->ffs_fix_path);
+        strcat(file_path, stackp->ffs_fix_path);
         if (!add_pathsep(file_path)) {
           ff_free_stack_element(stackp);
           goto fail;
@@ -678,7 +690,7 @@ char *vim_findfile(void *search_ctx_arg)
         rest_of_wildcards = stackp->ffs_wc_path;
         if (*rest_of_wildcards != NUL) {
           len = strlen(file_path);
-          if (strncmp(rest_of_wildcards, "**", 2) == 0) {
+          if (strncmp(rest_of_wildcards, S_LEN("**")) == 0) {
             // pointer to the restrict byte
             // The restrict byte is not a character!
             p = rest_of_wildcards + 2;
@@ -769,7 +781,7 @@ char *vim_findfile(void *search_ctx_arg)
               ff_free_stack_element(stackp);
               goto fail;
             }
-            STRCAT(file_path, search_ctx->ffsc_file_to_search);
+            strcat(file_path, search_ctx->ffsc_file_to_search);
 
             // Try without extra suffix and then with suffixes
             // from 'suffixesadd'.
@@ -855,7 +867,7 @@ char *vim_findfile(void *search_ctx_arg)
 
       // if wildcards contains '**' we have to descent till we reach the
       // leaves of the directory tree.
-      if (strncmp(stackp->ffs_wc_path, "**", 2) == 0) {
+      if (strncmp(stackp->ffs_wc_path, S_LEN("**")) == 0) {
         for (int i = stackp->ffs_filearray_cur;
              i < stackp->ffs_filearray_size; i++) {
           if (path_fnamecmp(stackp->ffs_filearray[i],
@@ -910,7 +922,7 @@ char *vim_findfile(void *search_ctx_arg)
       if (!add_pathsep(file_path)) {
         goto fail;
       }
-      STRCAT(file_path, search_ctx->ffsc_fix_path);
+      strcat(file_path, search_ctx->ffsc_fix_path);
 
       // create a new stack entry
       sptr = ff_create_stack_element(file_path,

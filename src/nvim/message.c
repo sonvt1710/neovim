@@ -18,6 +18,7 @@
 #include "nvim/channel.h"
 #include "nvim/charset.h"
 #include "nvim/drawscreen.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
 #include "nvim/eval/typval_defs.h"
@@ -472,7 +473,7 @@ void trunc_string(const char *s, char *buf, int room_in, int buflen)
     }
   } else if (e + 3 < buflen) {
     // set the middle and copy the last part
-    memmove(buf + e, "...", 3);
+    memmove(buf + e, S_LEN("..."));
     len = (int)strlen(s + i) + 1;
     if (len >= buflen - e - 3) {
       len = buflen - e - 3 - 1;
@@ -2689,7 +2690,7 @@ static void msg_puts_printf(const char *str, const ptrdiff_t maxlen)
         *p++ = '\r';
       }
       memcpy(p, s, (size_t)len);
-      *(p + len) = '\0';
+      *(p + len) = NUL;
       if (info_message) {
         printf("%s", buf);
       } else {
@@ -3181,7 +3182,7 @@ static void redir_write(const char *const str, const ptrdiff_t maxlen)
     if (*s != '\n' && *s != '\r') {
       while (cur_col < msg_col) {
         if (capture_ga) {
-          ga_concat_len(capture_ga, " ", 1);
+          ga_concat_len(capture_ga, S_LEN(" "));
         }
         if (redir_reg) {
           write_reg_contents(redir_reg, " ", 1, true);

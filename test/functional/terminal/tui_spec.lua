@@ -2003,38 +2003,39 @@ describe('TUI', function()
     ]])
   end)
 
-  it('invalidated regions are cleared with terminal background attr', function()
-    local screen = Screen.new(50, 10)
-    screen:set_default_attr_ids({ [1] = { foreground = Screen.colors.Black } })
-    screen:attach()
-    fn.termopen({
-      nvim_prog,
-      '--clean',
-      '--cmd',
-      'set termguicolors',
-      '--cmd',
-      'sleep 10',
-    }, {
-      env = {
-        VIMRUNTIME = os.getenv('VIMRUNTIME'),
-      },
-    })
-    screen:expect({
-      grid = [[
-        {1:^                                                  }|
-        {1:                                                  }|*8
-                                                          |
-      ]],
-    })
-    screen:try_resize(51, 11)
-    screen:expect({
-      grid = [[
-        {1:^                                                   }|
-        {1:                                                   }|*9
-                                                           |
-      ]],
-    })
-  end)
+  -- #28667, #28668
+  for _, guicolors in ipairs({ 'notermguicolors', 'termguicolors' }) do
+    it('has no black flicker when clearing regions during startup with ' .. guicolors, function()
+      local screen = Screen.new(50, 10)
+      screen:attach()
+      fn.termopen({
+        nvim_prog,
+        '--clean',
+        '--cmd',
+        'set ' .. guicolors,
+        '--cmd',
+        'sleep 10',
+      }, {
+        env = {
+          VIMRUNTIME = os.getenv('VIMRUNTIME'),
+        },
+      })
+      screen:expect({
+        grid = [[
+          ^                                                  |
+                                                            |*9
+        ]],
+        intermediate = true,
+      })
+      screen:try_resize(51, 11)
+      screen:expect({
+        grid = [[
+          ^                                                   |
+                                                             |*10
+        ]],
+      })
+    end)
+  end
 
   it('argv[0] can be overridden #23953', function()
     if not exec_lua('return pcall(require, "ffi")') then
@@ -2935,6 +2936,61 @@ describe('TUI', function()
         setrgbb = true,
       }, eval("get(g:, 'xtgettcap', '')"))
       eq({ true, 1 }, { child_session:request('nvim_eval', '&termguicolors') })
+    end)
+  end)
+
+  it('does not query the terminal for truecolor support if $COLORTERM is set', function()
+    clear()
+    exec_lua([[
+      vim.api.nvim_create_autocmd('TermRequest', {
+        callback = function(args)
+          local req = args.data
+          vim.g.termrequest = req
+          local xtgettcap = req:match('^\027P%+q([%x;]+)$')
+          if xtgettcap then
+            local t = {}
+            for cap in vim.gsplit(xtgettcap, ';') do
+              local resp = string.format('\027P1+r%s\027\\', xtgettcap)
+              vim.api.nvim_chan_send(vim.bo[args.buf].channel, resp)
+              t[vim.text.hexdecode(cap)] = true
+            end
+            vim.g.xtgettcap = t
+            return true
+          elseif req:match('^\027P$qm\027\\$') then
+            vim.g.decrqss = true
+          end
+        end,
+      })
+    ]])
+
+    local child_server = new_pipename()
+    screen = tt.setup_child_nvim({
+      '--listen',
+      child_server,
+      '-u',
+      'NONE',
+      '-i',
+      'NONE',
+    }, {
+      env = {
+        VIMRUNTIME = os.getenv('VIMRUNTIME'),
+        -- With COLORTERM=256, Nvim should not query the terminal and should not set 'tgc'
+        COLORTERM = '256',
+        TERM = 'xterm-256colors',
+      },
+    })
+
+    screen:expect({ any = '%[No Name%]' })
+
+    local child_session = n.connect(child_server)
+    retry(nil, 1000, function()
+      local xtgettcap = eval("get(g:, 'xtgettcap', {})")
+      eq(nil, xtgettcap['Tc'])
+      eq(nil, xtgettcap['RGB'])
+      eq(nil, xtgettcap['setrgbf'])
+      eq(nil, xtgettcap['setrgbb'])
+      eq(0, eval([[get(g:, 'decrqss')]]))
+      eq({ true, 0 }, { child_session:request('nvim_eval', '&termguicolors') })
     end)
   end)
 

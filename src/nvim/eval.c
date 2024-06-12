@@ -24,6 +24,7 @@
 #include "nvim/cmdhist.h"
 #include "nvim/cursor.h"
 #include "nvim/edit.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/encode.h"
 #include "nvim/eval/executor.h"
@@ -1218,7 +1219,7 @@ int call_vim_function(const char *func, int argc, typval_T *argv, typval_T *rett
   int len = (int)strlen(func);
   partial_T *pt = NULL;
 
-  if (len >= 6 && !memcmp(func, "v:lua.", 6)) {
+  if (len >= 6 && !memcmp(func, S_LEN("v:lua."))) {
     func += 6;
     len = check_luafunc_name(func, false);
     if (len == 0) {
@@ -1382,112 +1383,24 @@ Object eval_foldtext(win_T *wp)
   return retval;
 }
 
-/// Get an lvalue
+/// Get the lval of a list/dict/blob subitem starting at "p". Loop
+/// until no more [idx] or .key is following.
 ///
-/// Lvalue may be
-/// - variable: "name", "na{me}"
-/// - dictionary item: "dict.key", "dict['key']"
-/// - list item: "list[expr]"
-/// - list slice: "list[expr:expr]"
-///
-/// Indexing only works if trying to use it with an existing List or Dictionary.
-///
-/// @param[in]  name  Name to parse.
-/// @param  rettv  Pointer to the value to be assigned or NULL.
-/// @param[out]  lp  Lvalue definition. When evaluation errors occur `->ll_name`
-///                  is NULL.
-/// @param[in]  unlet  True if using `:unlet`. This results in slightly
-///                    different behaviour when something is wrong; must end in
-///                    space or cmd separator.
-/// @param[in]  skip  True when skipping.
 /// @param[in]  flags  @see GetLvalFlags.
-/// @param[in]  fne_flags  Flags for find_name_end().
 ///
-/// @return A pointer to just after the name, including indexes. Returns NULL
-///         for a parsing error, but it is still needed to free items in lp.
-char *get_lval(char *const name, typval_T *const rettv, lval_T *const lp, const bool unlet,
-               const bool skip, const int flags, const int fne_flags)
-  FUNC_ATTR_NONNULL_ARG(1, 3)
+/// @return A pointer to the character after the subscript on success or NULL on
+///         failure.
+static char *get_lval_subscript(lval_T *lp, char *p, char *name, typval_T *rettv, hashtab_T *ht,
+                                dictitem_T *v, int unlet, int flags)
 {
-  bool empty1 = false;
   int quiet = flags & GLV_QUIET;
-
-  // Clear everything in "lp".
-  CLEAR_POINTER(lp);
-
-  if (skip) {
-    // When skipping just find the end of the name.
-    lp->ll_name = name;
-    return (char *)find_name_end(name, NULL, NULL, FNE_INCL_BR | fne_flags);
-  }
-
-  // Find the end of the name.
-  char *expr_start;
-  char *expr_end;
-  char *p = (char *)find_name_end(name, (const char **)&expr_start,
-                                  (const char **)&expr_end,
-                                  fne_flags);
-  if (expr_start != NULL) {
-    // Don't expand the name when we already know there is an error.
-    if (unlet && !ascii_iswhite(*p) && !ends_excmd(*p)
-        && *p != '[' && *p != '.') {
-      semsg(_(e_trailing_arg), p);
-      return NULL;
-    }
-
-    lp->ll_exp_name = make_expanded_name(name, expr_start, expr_end, p);
-    lp->ll_name = lp->ll_exp_name;
-    if (lp->ll_exp_name == NULL) {
-      // Report an invalid expression in braces, unless the
-      // expression evaluation has been cancelled due to an
-      // aborting error, an interrupt, or an exception.
-      if (!aborting() && !quiet) {
-        emsg_severe = true;
-        semsg(_(e_invarg2), name);
-        return NULL;
-      }
-      lp->ll_name_len = 0;
-    } else {
-      lp->ll_name_len = strlen(lp->ll_name);
-    }
-  } else {
-    lp->ll_name = name;
-    lp->ll_name_len = (size_t)(p - lp->ll_name);
-  }
-
-  // Without [idx] or .key we are done.
-  if ((*p != '[' && *p != '.') || lp->ll_name == NULL) {
-    return p;
-  }
-
-  hashtab_T *ht = NULL;
-
-  // Only pass &ht when we would write to the variable, it prevents autoload
-  // as well.
-  dictitem_T *v = find_var(lp->ll_name, lp->ll_name_len,
-                           (flags & GLV_READ_ONLY) ? NULL : &ht,
-                           flags & GLV_NO_AUTOLOAD);
-  if (v == NULL && !quiet) {
-    semsg(_("E121: Undefined variable: %.*s"),
-          (int)lp->ll_name_len, lp->ll_name);
-  }
-  if (v == NULL) {
-    return NULL;
-  }
-
-  lp->ll_tv = &v->di_tv;
-
-  if (tv_is_luafunc(lp->ll_tv)) {
-    // For v:lua just return a pointer to the "." after the "v:lua".
-    // If the caller is trans_function_name() it will check for a Lua function name.
-    return p;
-  }
-
-  // Loop until no more [idx] or .key is following.
   typval_T var1;
   var1.v_type = VAR_UNKNOWN;
   typval_T var2;
   var2.v_type = VAR_UNKNOWN;
+  bool empty1 = false;
+
+  // Loop until no more [idx] or .key is following.
   while (*p == '[' || (*p == '.' && p[1] != '=' && p[1] != '.')) {
     if (*p == '.' && lp->ll_tv->v_type != VAR_DICT) {
       if (!quiet) {
@@ -1522,6 +1435,7 @@ char *get_lval(char *const name, typval_T *const rettv, lval_T *const lp, const 
     char *key = NULL;
     if (*p == '.') {
       key = p + 1;
+
       for (len = 0; ASCII_ISALNUM(key[len]) || key[len] == '_'; len++) {}
       if (len == 0) {
         if (!quiet) {
@@ -1737,6 +1651,116 @@ char *get_lval(char *const name, typval_T *const rettv, lval_T *const lp, const 
   }
 
   tv_clear(&var1);
+  return p;
+}
+
+/// Get an lvalue
+///
+/// Lvalue may be
+/// - variable: "name", "na{me}"
+/// - dictionary item: "dict.key", "dict['key']"
+/// - list item: "list[expr]"
+/// - list slice: "list[expr:expr]"
+///
+/// Indexing only works if trying to use it with an existing List or Dictionary.
+///
+/// @param[in]  name  Name to parse.
+/// @param  rettv  Pointer to the value to be assigned or NULL.
+/// @param[out]  lp  Lvalue definition. When evaluation errors occur `->ll_name`
+///                  is NULL.
+/// @param[in]  unlet  True if using `:unlet`. This results in slightly
+///                    different behaviour when something is wrong; must end in
+///                    space or cmd separator.
+/// @param[in]  skip  True when skipping.
+/// @param[in]  flags  @see GetLvalFlags.
+/// @param[in]  fne_flags  Flags for find_name_end().
+///
+/// @return A pointer to just after the name, including indexes. Returns NULL
+///         for a parsing error, but it is still needed to free items in lp.
+char *get_lval(char *const name, typval_T *const rettv, lval_T *const lp, const bool unlet,
+               const bool skip, const int flags, const int fne_flags)
+  FUNC_ATTR_NONNULL_ARG(1, 3)
+{
+  int quiet = flags & GLV_QUIET;
+
+  // Clear everything in "lp".
+  CLEAR_POINTER(lp);
+
+  if (skip) {
+    // When skipping just find the end of the name.
+    lp->ll_name = name;
+    return (char *)find_name_end(name, NULL, NULL, FNE_INCL_BR | fne_flags);
+  }
+
+  // Find the end of the name.
+  char *expr_start;
+  char *expr_end;
+  char *p = (char *)find_name_end(name, (const char **)&expr_start,
+                                  (const char **)&expr_end,
+                                  fne_flags);
+  if (expr_start != NULL) {
+    // Don't expand the name when we already know there is an error.
+    if (unlet && !ascii_iswhite(*p) && !ends_excmd(*p)
+        && *p != '[' && *p != '.') {
+      semsg(_(e_trailing_arg), p);
+      return NULL;
+    }
+
+    lp->ll_exp_name = make_expanded_name(name, expr_start, expr_end, p);
+    lp->ll_name = lp->ll_exp_name;
+    if (lp->ll_exp_name == NULL) {
+      // Report an invalid expression in braces, unless the
+      // expression evaluation has been cancelled due to an
+      // aborting error, an interrupt, or an exception.
+      if (!aborting() && !quiet) {
+        emsg_severe = true;
+        semsg(_(e_invarg2), name);
+        return NULL;
+      }
+      lp->ll_name_len = 0;
+    } else {
+      lp->ll_name_len = strlen(lp->ll_name);
+    }
+  } else {
+    lp->ll_name = name;
+    lp->ll_name_len = (size_t)(p - lp->ll_name);
+  }
+
+  // Without [idx] or .key we are done.
+  if ((*p != '[' && *p != '.') || lp->ll_name == NULL) {
+    return p;
+  }
+
+  hashtab_T *ht = NULL;
+
+  // Only pass &ht when we would write to the variable, it prevents autoload
+  // as well.
+  dictitem_T *v = find_var(lp->ll_name, lp->ll_name_len,
+                           (flags & GLV_READ_ONLY) ? NULL : &ht,
+                           flags & GLV_NO_AUTOLOAD);
+  if (v == NULL && !quiet) {
+    semsg(_("E121: Undefined variable: %.*s"),
+          (int)lp->ll_name_len, lp->ll_name);
+  }
+  if (v == NULL) {
+    return NULL;
+  }
+
+  lp->ll_tv = &v->di_tv;
+
+  if (tv_is_luafunc(lp->ll_tv)) {
+    // For v:lua just return a pointer to the "." after the "v:lua".
+    // If the caller is trans_function_name() it will check for a Lua function name.
+    return p;
+  }
+
+  // If the next character is a "." or a "[", then process the subitem.
+  p = get_lval_subscript(lp, p, name, rettv, ht, v, unlet, flags);
+  if (p == NULL) {
+    return NULL;
+  }
+
+  lp->ll_name_len = (size_t)(p - lp->ll_name);
   return p;
 }
 
@@ -2137,7 +2161,7 @@ void del_menutrans_vars(void)
 {
   hash_lock(&globvarht);
   HASHTAB_ITER(&globvarht, hi, {
-    if (strncmp(hi->hi_key, "menutrans_", 10) == 0) {
+    if (strncmp(hi->hi_key, S_LEN("menutrans_")) == 0) {
       delete_var(&globvarht, hi);
     }
   });
@@ -3250,7 +3274,7 @@ static int eval7(char **arg, typval_T *rettv, evalarg_T *const evalarg, bool wan
         check_vars(s, (size_t)len);
         // If evaluate is false rettv->v_type was not set, but it's needed
         // in handle_subscript() to parse v:lua, so set it here.
-        if (rettv->v_type == VAR_UNKNOWN && !evaluate && strnequal(s, "v:lua.", 6)) {
+        if (rettv->v_type == VAR_UNKNOWN && !evaluate && strnequal(s, S_LEN("v:lua."))) {
           rettv->v_type = VAR_PARTIAL;
           rettv->vval.v_partial = vvlua_partial;
           rettv->vval.v_partial->pt_refcount++;
@@ -3459,7 +3483,7 @@ static int eval_method(char **const arg, typval_T *const rettv, evalarg_T *const
   int len;
   char *name = *arg;
   char *lua_funcname = NULL;
-  if (strnequal(name, "v:lua.", 6)) {
+  if (strnequal(name, S_LEN("v:lua."))) {
     lua_funcname = name + 6;
     *arg = (char *)skip_luafunc_name(lua_funcname);
     *arg = skipwhite(*arg);  // to detect trailing whitespace later
@@ -4778,6 +4802,88 @@ bool set_ref_in_list_items(list_T *l, int copyID, ht_stack_T **ht_stack)
   return abort;
 }
 
+/// Mark the dict "dd" with "copyID".
+/// Also see set_ref_in_item().
+static bool set_ref_in_item_dict(dict_T *dd, int copyID, ht_stack_T **ht_stack,
+                                 list_stack_T **list_stack)
+{
+  if (dd == NULL || dd->dv_copyID == copyID) {
+    return false;
+  }
+
+  // Didn't see this dict yet.
+  dd->dv_copyID = copyID;
+  if (ht_stack == NULL) {
+    return set_ref_in_ht(&dd->dv_hashtab, copyID, list_stack);
+  }
+
+  ht_stack_T *const newitem = xmalloc(sizeof(ht_stack_T));
+  newitem->ht = &dd->dv_hashtab;
+  newitem->prev = *ht_stack;
+  *ht_stack = newitem;
+
+  QUEUE *w = NULL;
+  DictWatcher *watcher = NULL;
+  QUEUE_FOREACH(w, &dd->watchers, {
+    watcher = tv_dict_watcher_node_data(w);
+    set_ref_in_callback(&watcher->callback, copyID, ht_stack, list_stack);
+  })
+
+  return false;
+}
+
+/// Mark the list "ll" with "copyID".
+/// Also see set_ref_in_item().
+static bool set_ref_in_item_list(list_T *ll, int copyID, ht_stack_T **ht_stack,
+                                 list_stack_T **list_stack)
+{
+  if (ll == NULL || ll->lv_copyID == copyID) {
+    return false;
+  }
+
+  // Didn't see this list yet.
+  ll->lv_copyID = copyID;
+  if (list_stack == NULL) {
+    return set_ref_in_list_items(ll, copyID, ht_stack);
+  }
+
+  list_stack_T *const newitem = xmalloc(sizeof(list_stack_T));
+  newitem->list = ll;
+  newitem->prev = *list_stack;
+  *list_stack = newitem;
+
+  return false;
+}
+
+/// Mark the partial "pt" with "copyID".
+/// Also see set_ref_in_item().
+static bool set_ref_in_item_partial(partial_T *pt, int copyID, ht_stack_T **ht_stack,
+                                    list_stack_T **list_stack)
+{
+  if (pt == NULL || pt->pt_copyID == copyID) {
+    return false;
+  }
+
+  // Didn't see this partial yet.
+  pt->pt_copyID = copyID;
+
+  bool abort = set_ref_in_func(pt->pt_name, pt->pt_func, copyID);
+
+  if (pt->pt_dict != NULL) {
+    typval_T dtv;
+
+    dtv.v_type = VAR_DICT;
+    dtv.vval.v_dict = pt->pt_dict;
+    abort = abort || set_ref_in_item(&dtv, copyID, ht_stack, list_stack);
+  }
+
+  for (int i = 0; i < pt->pt_argc; i++) {
+    abort = abort || set_ref_in_item(&pt->pt_argv[i], copyID, ht_stack, list_stack);
+  }
+
+  return abort;
+}
+
 /// Mark all lists and dicts referenced through typval "tv" with "copyID".
 ///
 /// @param tv            Typval content will be marked.
@@ -4792,71 +4898,15 @@ bool set_ref_in_item(typval_T *tv, int copyID, ht_stack_T **ht_stack, list_stack
   bool abort = false;
 
   switch (tv->v_type) {
-  case VAR_DICT: {
-    dict_T *dd = tv->vval.v_dict;
-    if (dd != NULL && dd->dv_copyID != copyID) {
-      // Didn't see this dict yet.
-      dd->dv_copyID = copyID;
-      if (ht_stack == NULL) {
-        abort = set_ref_in_ht(&dd->dv_hashtab, copyID, list_stack);
-      } else {
-        ht_stack_T *const newitem = xmalloc(sizeof(ht_stack_T));
-        newitem->ht = &dd->dv_hashtab;
-        newitem->prev = *ht_stack;
-        *ht_stack = newitem;
-      }
-
-      QUEUE *w = NULL;
-      DictWatcher *watcher = NULL;
-      QUEUE_FOREACH(w, &dd->watchers, {
-          watcher = tv_dict_watcher_node_data(w);
-          set_ref_in_callback(&watcher->callback, copyID, ht_stack, list_stack);
-        })
-    }
-    break;
-  }
-
-  case VAR_LIST: {
-    list_T *ll = tv->vval.v_list;
-    if (ll != NULL && ll->lv_copyID != copyID) {
-      // Didn't see this list yet.
-      ll->lv_copyID = copyID;
-      if (list_stack == NULL) {
-        abort = set_ref_in_list_items(ll, copyID, ht_stack);
-      } else {
-        list_stack_T *const newitem = xmalloc(sizeof(list_stack_T));
-        newitem->list = ll;
-        newitem->prev = *list_stack;
-        *list_stack = newitem;
-      }
-    }
-    break;
-  }
-
-  case VAR_PARTIAL: {
-    partial_T *pt = tv->vval.v_partial;
-
-    // A partial does not have a copyID, because it cannot contain itself.
-    if (pt != NULL) {
-      abort = set_ref_in_func(pt->pt_name, pt->pt_func, copyID);
-      if (pt->pt_dict != NULL) {
-        typval_T dtv;
-
-        dtv.v_type = VAR_DICT;
-        dtv.vval.v_dict = pt->pt_dict;
-        abort = abort || set_ref_in_item(&dtv, copyID, ht_stack, list_stack);
-      }
-
-      for (int i = 0; i < pt->pt_argc; i++) {
-        abort = abort || set_ref_in_item(&pt->pt_argv[i], copyID,
-                                         ht_stack, list_stack);
-      }
-    }
-    break;
-  }
+  case VAR_DICT:
+    return set_ref_in_item_dict(tv->vval.v_dict, copyID, ht_stack, list_stack);
+  case VAR_LIST:
+    return set_ref_in_item_list(tv->vval.v_list, copyID, ht_stack, list_stack);
   case VAR_FUNC:
     abort = set_ref_in_func(tv->vval.v_string, NULL, copyID);
     break;
+  case VAR_PARTIAL:
+    return set_ref_in_item_partial(tv->vval.v_partial, copyID, ht_stack, list_stack);
   case VAR_UNKNOWN:
   case VAR_BOOL:
   case VAR_SPECIAL:
@@ -5568,7 +5618,7 @@ void common_function(typval_T *argvars, typval_T *rettv, bool is_funcref)
     int dict_idx = 0;
     int arg_idx = 0;
     list_T *list = NULL;
-    if (strncmp(s, "s:", 2) == 0 || strncmp(s, "<SID>", 5) == 0) {
+    if (strncmp(s, S_LEN("s:")) == 0 || strncmp(s, S_LEN("<SID>")) == 0) {
       // Expand s: and <SID> into <SNR>nr_, so that the function can
       // also be called from another script. Using trans_function_name()
       // would also work, but some plugins depend on the name being
@@ -6142,7 +6192,7 @@ bool callback_call(Callback *const callback, const int argcount_in, typval_T *co
   case kCallbackFuncref:
     name = callback->data.funcref;
     int len = (int)strlen(name);
-    if (len >= 6 && !memcmp(name, "v:lua.", 6)) {
+    if (len >= 6 && !memcmp(name, S_LEN("v:lua."))) {
       name += 6;
       len = check_luafunc_name(name, false);
       if (len == 0) {
@@ -6410,7 +6460,7 @@ bool write_list(FileDescriptor *const fp, const list_T *const list, const bool b
       }
     }
     if (!binary || TV_LIST_ITEM_NEXT(list, li) != NULL) {
-      const ptrdiff_t written = file_write(fp, "\n", 1);
+      const ptrdiff_t written = file_write(fp, S_LEN("\n"));
       if (written < 0) {
         error = (int)written;
         goto write_list_error;
@@ -7104,8 +7154,8 @@ static char *make_expanded_name(const char *in_start, char *expr_start, char *ex
     retval = xmalloc(strlen(temp_result) + (size_t)(expr_start - in_start)
                      + (size_t)(in_end - expr_end) + 1);
     STRCPY(retval, in_start);
-    STRCAT(retval, temp_result);
-    STRCAT(retval, expr_end + 1);
+    strcat(retval, temp_result);
+    strcat(retval, expr_end + 1);
   }
   xfree(temp_result);
 
@@ -8860,7 +8910,7 @@ bool eval_has_provider(const char *feat, bool throw_if_fast)
 
   char name[32];  // Normalized: "python3_compiled" => "python3".
   snprintf(name, sizeof(name), "%s", feat);
-  strchrsub(name, '_', '\0');  // Chop any "_xx" suffix.
+  strchrsub(name, '_', NUL);  // Chop any "_xx" suffix.
 
   char buf[256];
   typval_T tv;

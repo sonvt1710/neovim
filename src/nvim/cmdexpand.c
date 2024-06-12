@@ -19,6 +19,7 @@
 #include "nvim/cmdexpand.h"
 #include "nvim/cmdhist.h"
 #include "nvim/drawscreen.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/funcs.h"
 #include "nvim/eval/typval.h"
@@ -2246,7 +2247,7 @@ static const char *set_one_cmd_context(expand_T *xp, const char *buff)
 
   // Does command allow "++argopt" argument?
   if (ea.argt & EX_ARGOPT) {
-    while (*arg != NUL && strncmp(arg, "++", 2) == 0) {
+    while (*arg != NUL && strncmp(arg, S_LEN("++")) == 0) {
       p = arg + 2;
       while (*p && !ascii_isspace(*p)) {
         MB_PTR_ADV(p);
@@ -2773,7 +2774,7 @@ static int ExpandFromContext(expand_T *xp, char *pat, char ***matches, int *numM
   // When expanding a function name starting with s:, match the <SNR>nr_
   // prefix.
   char *tofree = NULL;
-  if (xp->xp_context == EXPAND_USER_FUNC && strncmp(pat, "^s:", 3) == 0) {
+  if (xp->xp_context == EXPAND_USER_FUNC && strncmp(pat, S_LEN("^s:")) == 0) {
     const size_t len = strlen(pat) + 20;
 
     tofree = xmalloc(len);
@@ -3074,7 +3075,7 @@ static void *call_user_expand_func(user_expand_func_T user_expand_func, expand_T
   typval_T args[4];
   const sctx_T save_current_sctx = current_sctx;
 
-  if (xp->xp_arg == NULL || xp->xp_arg[0] == '\0' || xp->xp_line == NULL) {
+  if (xp->xp_arg == NULL || xp->xp_arg[0] == NUL || xp->xp_line == NULL) {
     return NULL;
   }
 
@@ -3242,6 +3243,7 @@ static int ExpandUserLua(expand_T *xp, int *num_file, char ***file)
 /// Adds matches to `ga`.
 /// If "dirs" is true only expand directory names.
 void globpath(char *path, char *file, garray_T *ga, int expand_options, bool dirs)
+  FUNC_ATTR_NONNULL_ALL
 {
   expand_T xpc;
   ExpandInit(&xpc);
@@ -3255,7 +3257,7 @@ void globpath(char *path, char *file, garray_T *ga, int expand_options, bool dir
     copy_option_part(&path, buf, MAXPATHL, ",");
     if (strlen(buf) + strlen(file) + 2 < MAXPATHL) {
       add_pathsep(buf);
-      STRCAT(buf, file);
+      strcat(buf, file);
 
       char **p;
       int num_p = 0;
@@ -3562,7 +3564,7 @@ void f_getcompletion(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 
   if (xpc.xp_context == EXPAND_USER_DEFINED) {
     // Must be "custom,funcname" pattern
-    if (strncmp(type, "custom,", 7) != 0) {
+    if (strncmp(type, S_LEN("custom,")) != 0) {
       semsg(_(e_invarg2), type);
       return;
     }
@@ -3572,7 +3574,7 @@ void f_getcompletion(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 
   if (xpc.xp_context == EXPAND_USER_LIST) {
     // Must be "customlist,funcname" pattern
-    if (strncmp(type, "customlist,", 11) != 0) {
+    if (strncmp(type, S_LEN("customlist,")) != 0) {
       semsg(_(e_invarg2), type);
       return;
     }

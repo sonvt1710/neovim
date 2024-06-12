@@ -14,6 +14,7 @@
 #include "nvim/diff.h"
 #include "nvim/digraph.h"
 #include "nvim/drawscreen.h"
+#include "nvim/errors.h"
 #include "nvim/eval/typval_defs.h"
 #include "nvim/eval/userfunc.h"
 #include "nvim/eval/vars.h"
@@ -121,8 +122,8 @@ static char *(p_bs_values[]) = { "indent", "eol", "start", "nostop", NULL };
 static char *(p_fdm_values[]) = { "manual", "expr", "marker", "indent",
                                   "syntax",  "diff", NULL };
 static char *(p_fcl_values[]) = { "all", NULL };
-static char *(p_cot_values[]) = { "menu", "menuone", "longest", "preview", "noinsert", "noselect",
-                                  "popup", NULL };
+static char *(p_cot_values[]) = { "menu", "menuone", "longest", "preview", "popup",
+                                  "noinsert", "noselect", "fuzzy", NULL };
 #ifdef BACKSLASH_IN_FILENAME
 static char *(p_csl_values[]) = { "slash", "backslash", NULL };
 #endif
@@ -157,6 +158,7 @@ void didset_string_options(void)
   opt_strings_flags(p_cmp, p_cmp_values, &cmp_flags, true);
   opt_strings_flags(p_bkc, p_bkc_values, &bkc_flags, true);
   opt_strings_flags(p_bo, p_bo_values, &bo_flags, true);
+  opt_strings_flags(p_cot, p_cot_values, &cot_flags, true);
   opt_strings_flags(p_ssop, p_ssop_values, &ssop_flags, true);
   opt_strings_flags(p_vop, p_ssop_values, &vop_flags, true);
   opt_strings_flags(p_fdo, p_fdo_values, &fdo_flags, true);
@@ -218,6 +220,7 @@ void check_buf_options(buf_T *buf)
   check_string_option(&buf->b_p_ft);
   check_string_option(&buf->b_p_cinw);
   check_string_option(&buf->b_p_cinsd);
+  check_string_option(&buf->b_p_cot);
   check_string_option(&buf->b_p_cpt);
   check_string_option(&buf->b_p_cfu);
   check_string_option(&buf->b_p_ofu);
@@ -285,15 +288,15 @@ int check_signcolumn(win_T *wp)
   }
 
   if (check_opt_strings(val, p_scl_values, false) == OK) {
-    if (!strncmp(val, "no", 2)) {  // no
+    if (!strncmp(val, S_LEN("no"))) {  // no
       wp->w_minscwidth = wp->w_maxscwidth = SCL_NO;
-    } else if (!strncmp(val, "nu", 2) && (wp->w_p_nu || wp->w_p_rnu)) {  // number
+    } else if (!strncmp(val, S_LEN("nu")) && (wp->w_p_nu || wp->w_p_rnu)) {  // number
       wp->w_minscwidth = wp->w_maxscwidth = SCL_NUM;
-    } else if (!strncmp(val, "yes:", 4)) {  // yes:<NUM>
+    } else if (!strncmp(val, S_LEN("yes:"))) {  // yes:<NUM>
       wp->w_minscwidth = wp->w_maxscwidth = val[4] - '0';
     } else if (*val == 'y') {  // yes
       wp->w_minscwidth = wp->w_maxscwidth = 1;
-    } else if (!strncmp(val, "auto:", 5)) {  // auto:<NUM>
+    } else if (!strncmp(val, S_LEN("auto:"))) {  // auto:<NUM>
       wp->w_minscwidth = 0;
       wp->w_maxscwidth = val[5] - '0';
     } else {  // auto
@@ -303,7 +306,7 @@ int check_signcolumn(win_T *wp)
     return OK;
   }
 
-  if (strncmp(val, "auto:", 5) != 0
+  if (strncmp(val, S_LEN("auto:")) != 0
       || strlen(val) != 8
       || !ascii_isdigit(val[5])
       || val[6] != '-'
@@ -992,10 +995,23 @@ int expand_set_complete(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'completeopt' option is changed.
 const char *did_set_completeopt(optset_T *args FUNC_ATTR_UNUSED)
 {
-  if (check_opt_strings(p_cot, p_cot_values, true) != OK) {
+  buf_T *buf = (buf_T *)args->os_buf;
+  char *cot = p_cot;
+  unsigned *flags = &cot_flags;
+
+  if (args->os_flags & OPT_LOCAL) {
+    cot = buf->b_p_cot;
+    flags = &buf->b_cot_flags;
+  }
+
+  if (check_opt_strings(cot, p_cot_values, true) != OK) {
     return e_invarg;
   }
-  completeopt_was_set();
+
+  if (opt_strings_flags(cot, p_cot_values, flags, true) != OK) {
+    return e_invarg;
+  }
+
   return NULL;
 }
 
@@ -1716,9 +1732,9 @@ const char *did_set_mousescroll(optset_T *args FUNC_ATTR_UNUSED)
 
     OptInt *direction;
 
-    if (memcmp(string, "ver:", 4) == 0) {
+    if (memcmp(string, S_LEN("ver:")) == 0) {
       direction = &vertical;
-    } else if (memcmp(string, "hor:", 4) == 0) {
+    } else if (memcmp(string, S_LEN("hor:")) == 0) {
       direction = &horizontal;
     } else {
       return e_invarg;

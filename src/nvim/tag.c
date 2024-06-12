@@ -18,6 +18,7 @@
 #include "nvim/cmdexpand_defs.h"
 #include "nvim/cursor.h"
 #include "nvim/drawscreen.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
 #include "nvim/ex_cmds.h"
@@ -878,14 +879,14 @@ static void print_tag_list(bool new_tag, bool use_tagstack, int num_matches, cha
         }
 
         // skip "file:" without a value (static tag)
-        if (strncmp(p, "file:", 5) == 0 && ascii_isspace(p[5])) {
+        if (strncmp(p, S_LEN("file:")) == 0 && ascii_isspace(p[5])) {
           p += 5;
           continue;
         }
         // skip "kind:<kind>" and "<kind>"
         if (p == tagp.tagkind
             || (p + 5 == tagp.tagkind
-                && strncmp(p, "kind:", 5) == 0)) {
+                && strncmp(p, S_LEN("kind:")) == 0)) {
           p = tagp.tagkind_end;
           continue;
         }
@@ -1059,7 +1060,7 @@ static int add_llist_tags(char *tag, int num_matches, char **matches)
 
       // Precede the tag pattern with \V to make it very
       // nomagic.
-      STRCAT(cmd, "\\V");
+      strcat(cmd, "\\V");
       len += 2;
 
       int cmd_len = (int)(cmd_end - cmd_start + 1);
@@ -1613,16 +1614,16 @@ static tags_read_status_T findtags_get_next_line(findtags_state_T *st, tagsearch
 static bool findtags_hdr_parse(findtags_state_T *st)
 {
   // Header lines in a tags file start with "!_TAG_"
-  if (strncmp(st->lbuf, "!_TAG_", 6) != 0) {
+  if (strncmp(st->lbuf, S_LEN("!_TAG_")) != 0) {
     // Non-header item before the header, e.g. "!" itself.
     return true;
   }
 
   // Process the header line.
-  if (strncmp(st->lbuf, "!_TAG_FILE_SORTED\t", 18) == 0) {
+  if (strncmp(st->lbuf, S_LEN("!_TAG_FILE_SORTED\t")) == 0) {
     st->tag_file_sorted = (uint8_t)st->lbuf[18];
   }
-  if (strncmp(st->lbuf, "!_TAG_FILE_ENCODING\t", 20) == 0) {
+  if (strncmp(st->lbuf, S_LEN("!_TAG_FILE_ENCODING\t")) == 0) {
     // Prepare to convert every line from the specified encoding to
     // 'encoding'.
     char *p;
@@ -1646,7 +1647,7 @@ static bool findtags_start_state_handler(findtags_state_T *st, bool *sortic,
 
   // The header ends when the line sorts below "!_TAG_".  When case is
   // folded lower case letters sort before "_".
-  if (strncmp(st->lbuf, "!_TAG_", 6) <= 0
+  if (strncmp(st->lbuf, S_LEN("!_TAG_")) <= 0
       || (st->lbuf[0] == '!' && ASCII_ISLOWER(st->lbuf[1]))) {
     return findtags_hdr_parse(st);
   }
@@ -2669,7 +2670,7 @@ static bool test_for_static(tagptrs_T *tagp)
   char *p = tagp->command;
   while ((p = vim_strchr(p, '\t')) != NULL) {
     p++;
-    if (strncmp(p, "file:", 5) == 0) {
+    if (strncmp(p, S_LEN("file:")) == 0) {
       return true;
     }
   }
@@ -2727,11 +2728,11 @@ static int parse_match(char *lbuf, tagptrs_T *tagp)
       // Accept ASCII alphabetic kind characters and any multi-byte
       // character.
       while (ASCII_ISALPHA(*p) || utfc_ptr2len(p) > 1) {
-        if (strncmp(p, "kind:", 5) == 0) {
+        if (strncmp(p, S_LEN("kind:")) == 0) {
           tagp->tagkind = p + 5;
-        } else if (strncmp(p, "user_data:", 10) == 0) {
+        } else if (strncmp(p, S_LEN("user_data:")) == 0) {
           tagp->user_data = p + 10;
-        } else if (strncmp(p, "line:", 5) == 0) {
+        } else if (strncmp(p, S_LEN("line:")) == 0) {
           tagp->tagline = atoi(p + 5);
         }
         if (tagp->tagkind != NULL && tagp->user_data != NULL) {
@@ -2942,6 +2943,8 @@ static int jumpto_tag(const char *lbuf_arg, int forceit, bool keep_help)
       str = skip_regexp(pbuf + 1, pbuf[0], false) + 1;
     }
     if (str > pbuf_end - 1) {   // search command with nothing following
+      size_t pbuflen = (size_t)(pbuf_end - pbuf);
+
       bool save_p_ws = p_ws;
       int save_p_ic = p_ic;
       int save_p_scs = p_scs;
@@ -2956,25 +2959,27 @@ static int jumpto_tag(const char *lbuf_arg, int forceit, bool keep_help)
         // start search before first line
         curwin->w_cursor.lnum = 0;
       }
-      if (do_search(NULL, pbuf[0], pbuf[0], pbuf + 1, 1, search_options, NULL)) {
+      if (do_search(NULL, pbuf[0], pbuf[0], pbuf + 1, pbuflen - 1, 1,
+                    search_options, NULL)) {
         retval = OK;
       } else {
         int found = 1;
 
         // try again, ignore case now
         p_ic = true;
-        if (!do_search(NULL, pbuf[0], pbuf[0], pbuf + 1, 1, search_options, NULL)) {
+        if (!do_search(NULL, pbuf[0], pbuf[0], pbuf + 1, pbuflen - 1, 1,
+                       search_options, NULL)) {
           // Failed to find pattern, take a guess: "^func  ("
           found = 2;
           test_for_static(&tagp);
           char cc = *tagp.tagname_end;
           *tagp.tagname_end = NUL;
-          snprintf(pbuf, LSIZE, "^%s\\s\\*(", tagp.tagname);
-          if (!do_search(NULL, '/', '/', pbuf, 1, search_options, NULL)) {
+          pbuflen = (size_t)snprintf(pbuf, LSIZE, "^%s\\s\\*(", tagp.tagname);
+          if (!do_search(NULL, '/', '/', pbuf, pbuflen, 1, search_options, NULL)) {
             // Guess again: "^char * \<func  ("
-            snprintf(pbuf, LSIZE, "^\\[#a-zA-Z_]\\.\\*\\<%s\\s\\*(",
-                     tagp.tagname);
-            if (!do_search(NULL, '/', '/', pbuf, 1, search_options, NULL)) {
+            pbuflen = (size_t)snprintf(pbuf, LSIZE, "^\\[#a-zA-Z_]\\.\\*\\<%s\\s\\*(",
+                                       tagp.tagname);
+            if (!do_search(NULL, '/', '/', pbuf, pbuflen, 1, search_options, NULL)) {
               found = 0;
             }
           }
@@ -3169,7 +3174,7 @@ static int find_extra(char **pp)
     first_char = *str;
   }
 
-  if (str != NULL && strncmp(str, ";\"", 2) == 0) {
+  if (str != NULL && strncmp(str, S_LEN(";\"")) == 0) {
     *pp = str;
     return OK;
   }
@@ -3298,7 +3303,7 @@ int get_tags(list_T *list, char *pat, char *buf_fname)
     bool is_static = test_for_static(&tp);
 
     // Skip pseudo-tag lines.
-    if (strncmp(tp.tagname, "!_TAG_", 6) == 0) {
+    if (strncmp(tp.tagname, S_LEN("!_TAG_")) == 0) {
       xfree(matches[i]);
       continue;
     }
@@ -3323,10 +3328,10 @@ int get_tags(list_T *list, char *pat, char *buf_fname)
            *p != NUL && *p != '\n' && *p != '\r';
            MB_PTR_ADV(p)) {
         if (p == tp.tagkind
-            || (p + 5 == tp.tagkind && strncmp(p, "kind:", 5) == 0)) {
+            || (p + 5 == tp.tagkind && strncmp(p, S_LEN("kind:")) == 0)) {
           // skip "kind:<kind>" and "<kind>"
           p = tp.tagkind_end - 1;
-        } else if (strncmp(p, "file:", 5) == 0) {
+        } else if (strncmp(p, S_LEN("file:")) == 0) {
           // skip "file:" (static tag)
           p += 4;
         } else if (!ascii_iswhite(*p)) {

@@ -422,10 +422,10 @@ char *get_user_cmd_complete(expand_T *xp, int idx)
 
 int cmdcomplete_str_to_type(const char *complete_str)
 {
-  if (strncmp(complete_str, "custom,", 7) == 0) {
+  if (strncmp(complete_str, S_LEN("custom,")) == 0) {
     return EXPAND_USER_DEFINED;
   }
-  if (strncmp(complete_str, "customlist,", 11) == 0) {
+  if (strncmp(complete_str, S_LEN("customlist,")) == 0) {
     return EXPAND_USER_LIST;
   }
 
@@ -580,7 +580,7 @@ static void uc_list(char *name, size_t name_len)
         IObuff[len++] = ' ';
       } while ((int64_t)len < 25 - over);
 
-      IObuff[len] = '\0';
+      IObuff[len] = NUL;
       msg_outtrans(IObuff, 0);
 
       if (cmd->uc_luaref != LUA_NOREF) {
@@ -831,7 +831,7 @@ invalid_count:
       }
     } else {
       char ch = attr[len];
-      attr[len] = '\0';
+      attr[len] = NUL;
       semsg(_("E181: Invalid attribute: %s"), attr);
       attr[len] = ch;
       return FAIL;
@@ -1056,7 +1056,7 @@ void ex_delcommand(exarg_T *eap)
   const char *arg = eap->arg;
   bool buffer_only = false;
 
-  if (strncmp(arg, "-buffer", 7) == 0 && ascii_iswhite(arg[7])) {
+  if (strncmp(arg, S_LEN("-buffer")) == 0 && ascii_iswhite(arg[7])) {
     buffer_only = true;
     arg = skipwhite(arg + 7);
   }
@@ -1274,9 +1274,9 @@ static size_t add_cmd_modifier(char *buf, char *mod_str, bool *multi_mods)
 
   if (buf != NULL) {
     if (*multi_mods) {
-      STRCAT(buf, " ");
+      strcat(buf, " ");
     }
-    STRCAT(buf, mod_str);
+    strcat(buf, mod_str);
   }
 
   *multi_mods = true;
@@ -1364,7 +1364,7 @@ size_t uc_mods(char *buf, const cmdmod_T *cmod, bool quote)
     if (quote) {
       *buf++ = '"';
     }
-    *buf = '\0';
+    *buf = NUL;
   }
 
   // the modifiers that are simple flags

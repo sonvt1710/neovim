@@ -14,6 +14,7 @@
 #include "nvim/change.h"
 #include "nvim/charset.h"
 #include "nvim/cursor.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
 #include "nvim/eval/typval_defs.h"
@@ -412,9 +413,9 @@ int spell_check_sps(void)
       f = SPS_FAST;
     } else if (strcmp(buf, "double") == 0) {
       f = SPS_DOUBLE;
-    } else if (strncmp(buf, "expr:", 5) != 0
-               && strncmp(buf, "file:", 5) != 0
-               && (strncmp(buf, "timeout:", 8) != 0
+    } else if (strncmp(buf, S_LEN("expr:")) != 0
+               && strncmp(buf, S_LEN("file:")) != 0
+               && (strncmp(buf, S_LEN("timeout:")) != 0
                    || (!ascii_isdigit(buf[8])
                        && !(buf[8] == '-' && ascii_isdigit(buf[9]))))) {
       f = -1;
@@ -484,7 +485,7 @@ void spell_suggest(int count)
       badlen = get_cursor_line_len() - curwin->w_cursor.col;
     }
     // Find the start of the badly spelled word.
-  } else if (spell_move_to(curwin, FORWARD, true, true, NULL) == 0
+  } else if (spell_move_to(curwin, FORWARD, SMT_ALL, true, NULL) == 0
              || curwin->w_cursor.col > prev_cursor.col) {
     // No bad word or it starts after the cursor: use the word under the
     // cursor.
@@ -542,7 +543,7 @@ void spell_suggest(int count)
     msg_row = Rows - 1;         // for when 'cmdheight' > 1
     lines_left = Rows;          // avoid more prompt
     char *fmt = _("Change \"%.*s\" to:");
-    if (cmdmsg_rl && strncmp(fmt, "Change", 6) == 0) {
+    if (cmdmsg_rl && strncmp(fmt, S_LEN("Change")) == 0) {
       // And now the rabbit from the high hat: Avoid showing the
       // untranslated message rightleft.
       fmt = ":ot \"%.*s\" egnahC";
@@ -642,7 +643,7 @@ void spell_suggest(int count)
     int c = (int)(sug.su_badptr - line);
     memmove(p, line, (size_t)c);
     STRCPY(p + c, stp->st_word);
-    STRCAT(p, sug.su_badptr + stp->st_orglen);
+    strcat(p, sug.su_badptr + stp->st_orglen);
 
     // For redo we use a change-word command.
     ResetRedobuff();
@@ -791,7 +792,7 @@ static void spell_find_suggest(char *badptr, int badlen, suginfo_T *su, int maxc
   for (char *p = sps_copy; *p != NUL;) {
     copy_option_part(&p, buf, MAXPATHL, ",");
 
-    if (strncmp(buf, "expr:", 5) == 0) {
+    if (strncmp(buf, S_LEN("expr:")) == 0) {
       // Evaluate an expression.  Skip this when called recursively,
       // when using spellsuggest() in the expression.
       if (!expr_busy) {
@@ -799,10 +800,10 @@ static void spell_find_suggest(char *badptr, int badlen, suginfo_T *su, int maxc
         spell_suggest_expr(su, buf + 5);
         expr_busy = false;
       }
-    } else if (strncmp(buf, "file:", 5) == 0) {
+    } else if (strncmp(buf, S_LEN("file:")) == 0) {
       // Use list of suggestions in a file.
       spell_suggest_file(su, buf + 5);
-    } else if (strncmp(buf, "timeout:", 8) == 0) {
+    } else if (strncmp(buf, S_LEN("timeout:")) == 0) {
       // Limit the time searching for suggestions.
       spell_suggest_timeout = atoi(buf + 8);
     } else if (!did_intern) {
@@ -1637,7 +1638,7 @@ static void suggest_trie_walk(suginfo_T *su, langp_T *lp, char *fword, bool soun
 
             // Append a space to preword when splitting.
             if (!try_compound && !fword_ends) {
-              STRCAT(preword, " ");
+              strcat(preword, " ");
             }
             sp->ts_prewordlen = (uint8_t)strlen(preword);
             sp->ts_splitoff = sp->ts_twordlen;

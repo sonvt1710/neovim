@@ -1642,7 +1642,7 @@ function vim.fn.execute(command, silent) end
 --- If {expr} starts with "./" the |current-directory| is used.
 ---
 --- @param expr any
---- @return any
+--- @return string
 function vim.fn.exepath(expr) end
 
 --- The result is a Number, which is |TRUE| if {expr} is
@@ -2766,8 +2766,9 @@ function vim.fn.getchangelist(buf) end
 ---   endfunction
 --- <
 ---
+--- @param expr? 0|1
 --- @return integer
-function vim.fn.getchar() end
+function vim.fn.getchar(expr) end
 
 --- The result is a Number which is the state of the modifiers for
 --- the last obtained character with getchar() or in another way.
@@ -2837,8 +2838,9 @@ function vim.fn.getcharsearch() end
 --- Otherwise this works like |getchar()|, except that a number
 --- result is converted to a string.
 ---
+--- @param expr? 0|1
 --- @return string
-function vim.fn.getcharstr() end
+function vim.fn.getcharstr(expr) end
 
 --- Return the type of the current command-line completion.
 --- Only works when the command line is being edited, thus
@@ -3249,8 +3251,8 @@ function vim.fn.getloclist(nr, what) end
 --- Refer to |getpos()| for getting information about a specific
 --- mark.
 ---
---- @param buf? any
---- @return any
+--- @param buf? integer?
+--- @return vim.fn.getmarklist.ret.item[]
 function vim.fn.getmarklist(buf) end
 
 --- Returns a |List| with all matches previously defined for the
@@ -3536,14 +3538,14 @@ function vim.fn.getreginfo(regname) end
 --- The optional argument {opts} is a Dict and supports the
 --- following items:
 ---
----   type    Specify the region's selection type
----       (default: "v"):
----       "v"    for |charwise| mode
----       "V"    for |linewise| mode
----       "<CTRL-V>"  for |blockwise-visual| mode
+---   type    Specify the region's selection type.
+---       See |getregtype()| for possible values,
+---       except that the width can be omitted
+---       and an empty string cannot be used.
+---       (default: "v")
 ---
 ---   exclusive  If |TRUE|, use exclusive selection
----       for the end position
+---       for the end position.
 ---       (default: follow 'selection')
 ---
 --- You can get the last selection type by |visualmode()|.
@@ -3580,6 +3582,43 @@ function vim.fn.getreginfo(regname) end
 --- @param opts? table
 --- @return string[]
 function vim.fn.getregion(pos1, pos2, opts) end
+
+--- Same as |getregion()|, but returns a list of positions
+--- describing the buffer text segments bound by {pos1} and
+--- {pos2}.
+--- The segments are a pair of positions for every line: >
+---   [[{start_pos}, {end_pos}], ...]
+--- <
+--- The position is a |List| with four numbers:
+---     [bufnum, lnum, col, off]
+--- "bufnum" is the buffer number.
+--- "lnum" and "col" are the position in the buffer.  The first
+--- column is 1.
+--- If the "off" number of a starting position is non-zero, it is
+--- the offset in screen columns from the start of the character.
+--- E.g., a position within a <Tab> or after the last character.
+--- If the "off" number of an ending position is non-zero, it is
+--- the offset of the character's first cell not included in the
+--- selection, otherwise all its cells are included.
+---
+--- Apart from the options supported by |getregion()|, {opts} also
+--- supports the following:
+---
+---   eol    If |TRUE|, indicate positions beyond
+---       the end of a line with "col" values
+---       one more than the length of the line.
+---       If |FALSE|, positions are limited
+---       within their lines, and if a line is
+---       empty or the selection is entirely
+---       beyond the end of a line, a "col"
+---       value of 0 is used for both positions.
+---       (default: |FALSE|)
+---
+--- @param pos1 table
+--- @param pos2 table
+--- @param opts? table
+--- @return integer[][][]
+function vim.fn.getregionpos(pos1, pos2, opts) end
 
 --- The result is a String, which is type of register {regname}.
 --- The value will be one of:
@@ -5260,8 +5299,9 @@ function vim.fn.mapcheck(name, mode, abbr) end
 ---   ounmap xyzzy
 ---   echo printf("Operator-pending mode bit: 0x%x", op_bit)
 ---
---- @return any
-function vim.fn.maplist() end
+--- @param abbr? 0|1
+--- @return table[]
+function vim.fn.maplist(abbr) end
 
 --- Like |map()| but instead of replacing items in {expr1} a new
 --- List or Dictionary is created and returned.  {expr1} remains
@@ -7597,8 +7637,15 @@ function vim.fn.searchdecl(name, global, thisblock) end
 ---        \ 'synIDattr(synID(line("."), col("."), 0), "name") =~? "string"')
 --- <
 ---
---- @return any
-function vim.fn.searchpair() end
+--- @param start any
+--- @param middle any
+--- @param end_ any
+--- @param flags? string
+--- @param skip? any
+--- @param stopline? any
+--- @param timeout? integer
+--- @return integer
+function vim.fn.searchpair(start, middle, end_, flags, skip, stopline, timeout) end
 
 --- Same as |searchpair()|, but returns a |List| with the line and
 --- column position of the match. The first element of the |List|
@@ -7610,8 +7657,15 @@ function vim.fn.searchpair() end
 --- <
 --- See |match-parens| for a bigger and more useful example.
 ---
---- @return any
-function vim.fn.searchpairpos() end
+--- @param start any
+--- @param middle any
+--- @param end_ any
+--- @param flags? string
+--- @param skip? any
+--- @param stopline? any
+--- @param timeout? integer
+--- @return [integer, integer]
+function vim.fn.searchpairpos(start, middle, end_, flags, skip, stopline, timeout) end
 
 --- Same as |search()|, but returns a |List| with the line and
 --- column position of the match. The first element of the |List|
@@ -9759,7 +9813,7 @@ function vim.fn.synIDtrans(synID) end
 ---
 --- @param lnum integer
 --- @param col integer
---- @return {[1]: integer, [2]: string, [3]: integer}
+--- @return [integer, string, integer]
 function vim.fn.synconcealed(lnum, col) end
 
 --- Return a |List|, which is the stack of syntax items at the

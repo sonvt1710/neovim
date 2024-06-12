@@ -43,6 +43,7 @@
 #include "nvim/diff.h"
 #include "nvim/digraph.h"
 #include "nvim/drawscreen.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
 #include "nvim/eval/vars.h"
@@ -2076,6 +2077,7 @@ void free_buf_options(buf_T *buf, bool free_p_ff)
   clear_string_option(&buf->b_p_lop);
   clear_string_option(&buf->b_p_cinsd);
   clear_string_option(&buf->b_p_cinw);
+  clear_string_option(&buf->b_p_cot);
   clear_string_option(&buf->b_p_cpt);
   clear_string_option(&buf->b_p_cfu);
   callback_free(&buf->b_cfu_cb);
@@ -3848,8 +3850,8 @@ static int chk_modeline(linenr_T lnum, int flags)
   int prev = -1;
   for (s = ml_get(lnum); *s != NUL; s++) {
     if (prev == -1 || ascii_isspace(prev)) {
-      if ((prev != -1 && strncmp(s, "ex:", 3) == 0)
-          || strncmp(s, "vi:", 3) == 0) {
+      if ((prev != -1 && strncmp(s, S_LEN("ex:")) == 0)
+          || strncmp(s, S_LEN("vi:")) == 0) {
         break;
       }
       // Accept both "vim" and "Vim".
@@ -3865,7 +3867,7 @@ static int chk_modeline(linenr_T lnum, int flags)
 
         if (*e == ':'
             && (s[0] != 'V'
-                || strncmp(skipwhite(e + 1), "set", 3) == 0)
+                || strncmp(skipwhite(e + 1), S_LEN("set")) == 0)
             && (s[3] == ':'
                 || (VIM_VERSION_100 >= vers && isdigit((uint8_t)s[3]))
                 || (VIM_VERSION_100 < vers && s[3] == '<')
@@ -3914,8 +3916,8 @@ static int chk_modeline(linenr_T lnum, int flags)
     // "vi:set opt opt opt: foo" -- foo not interpreted
     // "vi:opt opt opt: foo" -- foo interpreted
     // Accept "se" for compatibility with Elvis.
-    if (strncmp(s, "set ", 4) == 0
-        || strncmp(s, "se ", 3) == 0) {
+    if (strncmp(s, S_LEN("set ")) == 0
+        || strncmp(s, S_LEN("se ")) == 0) {
       if (*e != ':') {                // no terminating ':'?
         break;
       }
@@ -4207,7 +4209,7 @@ int buf_open_scratch(handle_T bufnr, char *bufname)
 
 bool buf_is_empty(buf_T *buf)
 {
-  return buf->b_ml.ml_line_count == 1 && *ml_get_buf(buf, 1) == '\0';
+  return buf->b_ml.ml_line_count == 1 && *ml_get_buf(buf, 1) == NUL;
 }
 
 /// Increment b:changedtick value

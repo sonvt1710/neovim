@@ -28,6 +28,7 @@
 #include "nvim/digraph.h"
 #include "nvim/drawscreen.h"
 #include "nvim/edit.h"
+#include "nvim/errors.h"
 #include "nvim/eval.h"
 #include "nvim/eval/typval.h"
 #include "nvim/eval/vars.h"
@@ -470,7 +471,7 @@ static void may_do_incsearch_highlighting(int firstc, int count, incsearch_state
       .sa_tm = &tm,
     };
     found = do_search(NULL, firstc == ':' ? '/' : firstc, search_delim,
-                      ccline.cmdbuff + skiplen, count,
+                      ccline.cmdbuff + skiplen, (size_t)patlen, count,
                       search_flags, &sia);
     ccline.cmdbuff[skiplen + patlen] = next_char;
     emsg_off--;
@@ -884,11 +885,12 @@ static uint8_t *command_line_enter(int firstc, int count, int indent, bool clear
         && ccline.cmdlen
         && s->firstc != NUL
         && (s->some_key_typed || s->histype == HIST_SEARCH)) {
-      add_to_history(s->histype, ccline.cmdbuff, true,
+      size_t cmdbufflen = strlen(ccline.cmdbuff);
+      add_to_history(s->histype, ccline.cmdbuff, cmdbufflen, true,
                      s->histype == HIST_SEARCH ? s->firstc : NUL);
       if (s->firstc == ':') {
         xfree(new_last_cmdline);
-        new_last_cmdline = xstrdup(ccline.cmdbuff);
+        new_last_cmdline = xstrnsave(ccline.cmdbuff, cmdbufflen);
       }
     }
 
@@ -1451,7 +1453,7 @@ static int may_do_command_line_next_incsearch(int firstc, int count, incsearch_s
   pat[patlen] = NUL;
   int found = searchit(curwin, curbuf, &t, NULL,
                        next_match ? FORWARD : BACKWARD,
-                       pat, count, search_flags,
+                       pat, (size_t)patlen, count, search_flags,
                        RE_SEARCH, NULL);
   emsg_off--;
   pat[patlen] = save;
@@ -2531,6 +2533,10 @@ static bool cmdpreview_may_show(CommandLineState *s)
     goto end;
   }
 
+  // Flush now: external cmdline may itself wish to update the screen which is
+  // currently disallowed during cmdpreview(no longer needed in case that changes).
+  cmdline_ui_flush();
+
   // Swap invalid command range if needed
   if ((ea.argt & EX_RANGE) && ea.line1 > ea.line2) {
     linenr_T lnum = ea.line1;
@@ -2793,13 +2799,13 @@ int check_opt_wim(void)
     if (p[i] != NUL && p[i] != ',' && p[i] != ':') {
       return FAIL;
     }
-    if (i == 7 && strncmp(p, "longest", 7) == 0) {
+    if (i == 7 && strncmp(p, S_LEN("longest")) == 0) {
       new_wim_flags[idx] |= WIM_LONGEST;
-    } else if (i == 4 && strncmp(p, "full", 4) == 0) {
+    } else if (i == 4 && strncmp(p, S_LEN("full")) == 0) {
       new_wim_flags[idx] |= WIM_FULL;
-    } else if (i == 4 && strncmp(p, "list", 4) == 0) {
+    } else if (i == 4 && strncmp(p, S_LEN("list")) == 0) {
       new_wim_flags[idx] |= WIM_LIST;
-    } else if (i == 8 && strncmp(p, "lastused", 8) == 0) {
+    } else if (i == 8 && strncmp(p, S_LEN("lastused")) == 0) {
       new_wim_flags[idx] |= WIM_BUFLASTUSED;
     } else {
       return FAIL;
@@ -3449,11 +3455,9 @@ void cmdline_screen_cleared(void)
 /// called by ui_flush, do what redraws necessary to keep cmdline updated.
 void cmdline_ui_flush(void)
 {
-  static bool flushing = false;
-  if (!ui_has(kUICmdline) || flushing) {
+  if (!ui_has(kUICmdline)) {
     return;
   }
-  flushing = true;
   int level = ccline.level;
   CmdlineInfo *line = &ccline;
   while (level > 0 && line) {
@@ -3468,7 +3472,6 @@ void cmdline_ui_flush(void)
     }
     line = line->prev_ccline;
   }
-  flushing = false;
 }
 
 // Put a character on the command line.  Shifts the following text to the

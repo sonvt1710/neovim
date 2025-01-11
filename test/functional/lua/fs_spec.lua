@@ -141,19 +141,14 @@ describe('vim.fs', function()
     it('works', function()
       eq(
         true,
-        exec_lua(
-          [[
-        local dir, nvim = ...
-        for name, type in vim.fs.dir(dir) do
-          if name == nvim and type == 'file' then
-            return true
+        exec_lua(function()
+          for name, type in vim.fs.dir(nvim_dir) do
+            if name == nvim_prog_basename and type == 'file' then
+              return true
+            end
           end
-        end
-        return false
-      ]],
-          nvim_dir,
-          nvim_prog_basename
-        )
+          return false
+        end)
       )
     end)
 
@@ -172,14 +167,12 @@ describe('vim.fs', function()
       io.open('testd/a/b/c/c4', 'w'):close()
 
       local function run(dir, depth, skip)
-        local r = exec_lua(
-          [[
-          local dir, depth, skip = ...
+        return exec_lua(function()
           local r = {}
           local skip_f
           if skip then
-            skip_f = function(n)
-              if vim.tbl_contains(skip or {}, n) then
+            skip_f = function(n0)
+              if vim.tbl_contains(skip or {}, n0) then
                 return false
               end
             end
@@ -188,12 +181,7 @@ describe('vim.fs', function()
             r[name] = type_
           end
           return r
-        ]],
-          dir,
-          depth,
-          skip
-        )
-        return r
+        end)
       end
 
       local exp = {}
@@ -263,13 +251,12 @@ describe('vim.fs', function()
 
       opts = { path = test_source_path .. '/contrib', limit = math.huge }
       eq(
-        exec_lua(
-          [[
-          local dir = ...
-          return vim.tbl_map(vim.fs.basename, vim.fn.glob(dir..'/contrib/*', false, true))
-        ]],
-          test_source_path
-        ),
+        exec_lua(function()
+          return vim.tbl_map(
+            vim.fs.basename,
+            vim.fn.glob(test_source_path .. '/contrib/*', false, true)
+          )
+        end),
         vim.tbl_map(
           vim.fs.basename,
           vim.fs.find(function(_, d)
@@ -286,48 +273,48 @@ describe('vim.fs', function()
     end)
 
     it('works with a single marker', function()
-      eq(test_source_path, exec_lua([[return vim.fs.root(0, '.git')]]))
+      eq(test_source_path, exec_lua([[return vim.fs.root(0, 'CMakePresets.json')]]))
     end)
 
     it('works with multiple markers', function()
       local bufnr = api.nvim_get_current_buf()
       eq(
         vim.fs.joinpath(test_source_path, 'test/functional/fixtures'),
-        exec_lua([[return vim.fs.root(..., {'CMakeLists.txt', '.git'})]], bufnr)
+        exec_lua([[return vim.fs.root(..., {'CMakeLists.txt', 'CMakePresets.json'})]], bufnr)
       )
     end)
 
     it('works with a function', function()
       ---@type string
-      local result = exec_lua([[
-        return vim.fs.root(0, function(name, path)
+      local result = exec_lua(function()
+        return vim.fs.root(0, function(name, _)
           return name:match('%.txt$')
         end)
-      ]])
+      end)
       eq(vim.fs.joinpath(test_source_path, 'test/functional/fixtures'), result)
     end)
 
     it('works with a filename argument', function()
-      eq(test_source_path, exec_lua([[return vim.fs.root(..., '.git')]], nvim_prog))
+      eq(test_source_path, exec_lua([[return vim.fs.root(..., 'CMakePresets.json')]], nvim_prog))
     end)
 
     it('works with a relative path', function()
       eq(
         test_source_path,
-        exec_lua([[return vim.fs.root(..., '.git')]], vim.fs.basename(nvim_prog))
+        exec_lua([[return vim.fs.root(..., 'CMakePresets.json')]], vim.fs.basename(nvim_prog))
       )
     end)
 
     it('uses cwd for unnamed buffers', function()
       command('new')
-      eq(test_source_path, exec_lua([[return vim.fs.root(0, '.git')]]))
+      eq(test_source_path, exec_lua([[return vim.fs.root(0, 'CMakePresets.json')]]))
     end)
 
     it("uses cwd for buffers with non-empty 'buftype'", function()
       command('new')
       command('set buftype=nofile')
       command('file lua://')
-      eq(test_source_path, exec_lua([[return vim.fs.root(0, '.git')]]))
+      eq(test_source_path, exec_lua([[return vim.fs.root(0, 'CMakePresets.json')]]))
     end)
   end)
 
@@ -335,6 +322,20 @@ describe('vim.fs', function()
     it('works', function()
       eq('foo/bar/baz', vim.fs.joinpath('foo', 'bar', 'baz'))
       eq('foo/bar/baz', vim.fs.joinpath('foo', '/bar/', '/baz'))
+    end)
+    it('rewrites backslashes on Windows', function()
+      if is_os('win') then
+        eq('foo/bar/baz/zub/', vim.fs.joinpath([[foo]], [[\\bar\\\\baz]], [[zub\]]))
+      else
+        eq([[foo/\\bar\\\\baz/zub\]], vim.fs.joinpath([[foo]], [[\\bar\\\\baz]], [[zub\]]))
+      end
+    end)
+    it('strips redundant slashes', function()
+      if is_os('win') then
+        eq('foo/bar/baz/zub/', vim.fs.joinpath([[foo//]], [[\\bar\\\\baz]], [[zub\]]))
+      else
+        eq('foo/bar/baz/zub/', vim.fs.joinpath([[foo]], [[//bar////baz]], [[zub/]]))
+      end
     end)
   end)
 
@@ -352,19 +353,16 @@ describe('vim.fs', function()
       local xdg_config_home = test_build_dir .. '/.config'
       eq(
         xdg_config_home .. '/nvim',
-        exec_lua(
-          [[
-        vim.env.XDG_CONFIG_HOME = ...
-        return vim.fs.normalize('$XDG_CONFIG_HOME/nvim')
-      ]],
-          xdg_config_home
-        )
+        exec_lua(function()
+          vim.env.XDG_CONFIG_HOME = xdg_config_home
+          return vim.fs.normalize('$XDG_CONFIG_HOME/nvim')
+        end)
       )
     end)
 
     -- Opts required for testing posix paths and win paths
-    local posix_opts = is_os('win') and { win = false } or {}
-    local win_opts = is_os('win') and {} or { win = true }
+    local posix_opts = { win = false }
+    local win_opts = { win = true }
 
     it('preserves leading double slashes in POSIX paths', function()
       eq('//foo', vim.fs.normalize('//foo', posix_opts))
@@ -373,6 +371,29 @@ describe('vim.fs', function()
       eq('//', vim.fs.normalize('//', posix_opts))
       eq('/', vim.fs.normalize('///', posix_opts))
       eq('/foo/bar', vim.fs.normalize('/foo//bar////', posix_opts))
+    end)
+
+    it('normalizes drive letter', function()
+      eq('C:/', vim.fs.normalize('C:/', win_opts))
+      eq('C:/', vim.fs.normalize('c:/', win_opts))
+      eq('D:/', vim.fs.normalize('d:/', win_opts))
+      eq('C:', vim.fs.normalize('C:', win_opts))
+      eq('C:', vim.fs.normalize('c:', win_opts))
+      eq('D:', vim.fs.normalize('d:', win_opts))
+      eq('C:/foo/test', vim.fs.normalize('C:/foo/test/', win_opts))
+      eq('C:/foo/test', vim.fs.normalize('c:/foo/test/', win_opts))
+      eq('D:foo/test', vim.fs.normalize('D:foo/test/', win_opts))
+      eq('D:foo/test', vim.fs.normalize('d:foo/test/', win_opts))
+    end)
+
+    it('always treats paths as case-sensitive #31833', function()
+      eq('TEST', vim.fs.normalize('TEST', win_opts))
+      eq('test', vim.fs.normalize('test', win_opts))
+      eq('C:/FOO/test', vim.fs.normalize('C:/FOO/test', win_opts))
+      eq('C:/foo/test', vim.fs.normalize('C:/foo/test', win_opts))
+      eq('//SERVER/SHARE/FOO/BAR', vim.fs.normalize('//SERVER/SHARE/FOO/BAR', win_opts))
+      eq('//server/share/foo/bar', vim.fs.normalize('//server/share/foo/bar', win_opts))
+      eq('C:/FOO/test', vim.fs.normalize('c:/FOO/test', win_opts))
     end)
 
     it('allows backslashes on unix-based os', function()
@@ -469,5 +490,40 @@ describe('vim.fs', function()
         eq('/foo', vim.fs.normalize('/foo/../../foo', posix_opts))
       end)
     end)
+  end)
+
+  describe('abspath()', function()
+    local cwd = is_os('win') and vim.uv.cwd():gsub('\\', '/') or vim.uv.cwd()
+    local home = is_os('win') and vim.uv.os_homedir():gsub('\\', '/') or vim.uv.os_homedir()
+
+    it('works', function()
+      eq(cwd .. '/foo', vim.fs.abspath('foo'))
+      eq(cwd .. '/././foo', vim.fs.abspath('././foo'))
+      eq(cwd .. '/.././../foo', vim.fs.abspath('.././../foo'))
+    end)
+
+    it('works with absolute paths', function()
+      if is_os('win') then
+        eq([[C:/foo]], vim.fs.abspath([[C:\foo]]))
+        eq([[C:/foo/../.]], vim.fs.abspath([[C:\foo\..\.]]))
+        eq('//foo/bar', vim.fs.abspath('\\\\foo\\bar'))
+      else
+        eq('/foo/../.', vim.fs.abspath('/foo/../.'))
+        eq('/foo/bar', vim.fs.abspath('/foo/bar'))
+      end
+    end)
+
+    it('expands ~', function()
+      eq(home .. '/foo', vim.fs.abspath('~/foo'))
+      eq(home .. '/./.././foo', vim.fs.abspath('~/./.././foo'))
+    end)
+
+    if is_os('win') then
+      it('works with drive-specific cwd on Windows', function()
+        local cwd_drive = cwd:match('^%w:')
+
+        eq(cwd .. '/foo', vim.fs.abspath(cwd_drive .. 'foo'))
+      end)
+    end
   end)
 end)

@@ -1170,8 +1170,8 @@ endfunc
 func Test_visual_put_in_block_using_zp()
   new
   " paste using zP
-  call setline(1, ['/path;text', '/path;text', '/path;text', '', 
-    \ '/subdir', 
+  call setline(1, ['/path;text', '/path;text', '/path;text', '',
+    \ '/subdir',
     \ '/longsubdir',
     \ '/longlongsubdir'])
   exe "normal! 5G\<c-v>2j$y"
@@ -1179,8 +1179,8 @@ func Test_visual_put_in_block_using_zp()
   call assert_equal(['/path/subdir;text', '/path/longsubdir;text', '/path/longlongsubdir;text'], getline(1, 3))
   %d
   " paste using zP
-  call setline(1, ['/path;text', '/path;text', '/path;text', '', 
-    \ '/subdir', 
+  call setline(1, ['/path;text', '/path;text', '/path;text', '',
+    \ '/subdir',
     \ '/longsubdir',
     \ '/longlongsubdir'])
   exe "normal! 5G\<c-v>2j$y"
@@ -1193,7 +1193,7 @@ func Test_visual_put_in_block_using_zy_and_zp()
   new
 
   " Test 1) Paste using zp - after the cursor without trailing spaces
-  call setline(1, ['/path;text', '/path;text', '/path;text', '', 
+  call setline(1, ['/path;text', '/path;text', '/path;text', '',
     \ 'texttext  /subdir           columntext',
 		\ 'texttext  /longsubdir       columntext',
     \ 'texttext  /longlongsubdir   columntext'])
@@ -1203,7 +1203,7 @@ func Test_visual_put_in_block_using_zy_and_zp()
 
   " Test 2) Paste using zP - in front of the cursor without trailing spaces
   %d
-  call setline(1, ['/path;text', '/path;text', '/path;text', '', 
+  call setline(1, ['/path;text', '/path;text', '/path;text', '',
     \ 'texttext  /subdir           columntext',
 		\ 'texttext  /longsubdir       columntext',
     \ 'texttext  /longlongsubdir   columntext'])
@@ -1213,7 +1213,7 @@ func Test_visual_put_in_block_using_zy_and_zp()
 
   " Test 3) Paste using p - with trailing spaces
   %d
-  call setline(1, ['/path;text', '/path;text', '/path;text', '', 
+  call setline(1, ['/path;text', '/path;text', '/path;text', '',
     \ 'texttext  /subdir           columntext',
 		\ 'texttext  /longsubdir       columntext',
     \ 'texttext  /longlongsubdir   columntext'])
@@ -1223,7 +1223,7 @@ func Test_visual_put_in_block_using_zy_and_zp()
 
   " Test 4) Paste using P - with trailing spaces
   %d
-  call setline(1, ['/path;text', '/path;text', '/path;text', '', 
+  call setline(1, ['/path;text', '/path;text', '/path;text', '',
     \ 'texttext  /subdir           columntext',
 		\ 'texttext  /longsubdir       columntext',
     \ 'texttext  /longlongsubdir   columntext'])
@@ -1233,7 +1233,7 @@ func Test_visual_put_in_block_using_zy_and_zp()
 
   " Test 5) Yank with spaces inside the block
   %d
-  call setline(1, ['/path;text', '/path;text', '/path;text', '', 
+  call setline(1, ['/path;text', '/path;text', '/path;text', '',
     \ 'texttext  /sub    dir/           columntext',
     \ 'texttext  /lon    gsubdir/       columntext',
     \ 'texttext  /lon    glongsubdir/   columntext'])
@@ -2716,6 +2716,52 @@ func Test_visual_block_cursor_insert_enter()
   exe ":norm! \<c-v>3jcw\<cr>"
   call assert_equal(['asdfw', 'asdf', 'asdfasdf', 'asdfasdf', 'asdfasdf'], getline(1, '$'))
   bwipe!
+endfunc
+
+func Test_visual_block_exclusive_selection()
+  new
+  set selection=exclusive
+  call setline(1, ['asöd asdf', 'asdf asdf', 'as€d asdf', 'asdf asdf'])
+  call cursor(1, 1)
+  exe ":norm! \<c-v>eh3j~"
+  call assert_equal(['ASÖd asdf', 'ASDf asdf', 'AS€d asdf', 'ASDf asdf'], getline(1, '$'))
+  exe ":norm! 1v~"
+  call assert_equal(['asöd asdf', 'asdf asdf', 'as€d asdf', 'asdf asdf'], getline(1, '$'))
+  bwipe!
+  set selection&vim
+endfunc
+
+func Test_visual_block_exclusive_selection_adjusted()
+  new
+  " Test that the end-position of the visual selection is adjusted for exclusive selection
+  set selection=exclusive
+  call setline(1, ['asöd asdf  ', 'asdf asdf  ', 'as€d asdf  ', 'asdf asdf  '])
+  call cursor(1, 1)
+  " inclusive motion
+  exe ":norm! \<c-v>e3jy"
+  call assert_equal([0, 4, 5, 0], getpos("'>"))
+  " exclusive motion
+  exe ":norm! \<c-v>ta3jy"
+  call assert_equal([0, 4, 6, 0], getpos("'>"))
+  " another inclusive motion
+  exe ":norm! \<c-v>g_3jy"
+  call assert_equal([0, 4, 10, 0], getpos("'>"))
+
+  " Reset selection option to Vim default
+  set selection&vim
+  call cursor(1, 1)
+
+  " inclusive motion
+  exe ":norm! \<c-v>e3jy"
+  call assert_equal([0, 4, 4, 0], getpos("'>"))
+  " exclusive motion
+  exe ":norm! \<c-v>ta3jy"
+  call assert_equal([0, 4, 5, 0], getpos("'>"))
+  " another inclusive motion
+  exe ":norm! \<c-v>g_3jy"
+  call assert_equal([0, 4, 9, 0], getpos("'>"))
+  bwipe!
+  set selection&vim
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

@@ -3615,7 +3615,7 @@ static int spell_read_wordfile(spellinfo_T *spin, char *fname)
 
     if (*line == '/') {
       line++;
-      if (strncmp(line, S_LEN("encoding=")) == 0) {
+      if (strncmp(line, "encoding=", 9) == 0) {
         if (spin->si_conv.vc_type != CONV_NONE) {
           smsg(0, _("Duplicate /encoding= line ignored in %s line %" PRIdLINENR ": %s"),
                fname, lnum, line - 1);
@@ -3637,7 +3637,7 @@ static int spell_read_wordfile(spellinfo_T *spin, char *fname)
         continue;
       }
 
-      if (strncmp(line, S_LEN("regions=")) == 0) {
+      if (strncmp(line, "regions=", 8) == 0) {
         if (spin->si_region_count > 1) {
           smsg(0, _("Duplicate /regions= line ignored in %s line %" PRIdLINENR ": %s"),
                fname, lnum, line);
@@ -4105,8 +4105,8 @@ static void wordtree_compress(spellinfo_T *spin, wordnode_T *root, const char *n
       perc = (tot - n) * 100 / tot;
     }
     vim_snprintf(IObuff, IOSIZE,
-                 _("Compressed %s of %d nodes; %d (%ld%%) remaining"),
-                 name, tot, tot - n, perc);
+                 _("Compressed %s: %d of %d nodes; %d (%ld%%) remaining"),
+                 name, n, tot, tot - n, perc);
     spell_message(spin, IObuff);
   }
 #ifdef SPELL_PRINTTREE
@@ -4766,7 +4766,7 @@ void ex_mkspell(exarg_T *eap)
   char *arg = eap->arg;
   bool ascii = false;
 
-  if (strncmp(arg, S_LEN("-ascii")) == 0) {
+  if (strncmp(arg, "-ascii", 6) == 0) {
     ascii = true;
     arg = skipwhite(arg + 6);
   }

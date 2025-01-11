@@ -1,7 +1,7 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local tt = require('test.functional.terminal.testutil')
+local tt = require('test.functional.testterm')
 local feed_data = tt.feed_data
 local feed, clear = n.feed, n.clear
 local poke_eventloop = n.poke_eventloop
@@ -13,11 +13,31 @@ local skip = t.skip
 local is_os = t.is_os
 
 describe(':terminal window', function()
+  before_each(clear)
+
+  it('sets local values of window options #29325', function()
+    command('setglobal wrap list')
+    command('terminal')
+    eq({ 0, 0, 1 }, eval('[&l:wrap, &wrap, &g:wrap]'))
+    eq({ 0, 0, 1 }, eval('[&l:list, &list, &g:list]'))
+    command('enew')
+    eq({ 1, 1, 1 }, eval('[&l:wrap, &wrap, &g:wrap]'))
+    eq({ 1, 1, 1 }, eval('[&l:list, &list, &g:list]'))
+    command('buffer #')
+    eq({ 0, 0, 1 }, eval('[&l:wrap, &wrap, &g:wrap]'))
+    eq({ 0, 0, 1 }, eval('[&l:list, &list, &g:list]'))
+    command('new')
+    eq({ 1, 1, 1 }, eval('[&l:wrap, &wrap, &g:wrap]'))
+    eq({ 1, 1, 1 }, eval('[&l:list, &list, &g:list]'))
+  end)
+end)
+
+describe(':terminal window', function()
   local screen
 
   before_each(function()
     clear()
-    screen = tt.screen_setup()
+    screen = tt.setup_screen()
   end)
 
   it('sets topline correctly #8556', function()
@@ -37,13 +57,12 @@ describe(':terminal window', function()
 
   describe("with 'number'", function()
     it('wraps text', function()
-      skip(is_os('win')) -- todo(clason): unskip when reenabling reflow
       feed([[<C-\><C-N>]])
       feed([[:set numberwidth=1 number<CR>i]])
       screen:expect([[
         {7:1 }tty ready                                       |
         {7:2 }rows: 6, cols: 48                               |
-        {7:3 }{1: }                                               |
+        {7:3 }^                                                |
         {7:4 }                                                |
         {7:5 }                                                |
         {7:6 }                                                |
@@ -54,7 +73,7 @@ describe(':terminal window', function()
         {7:1 }tty ready                                       |
         {7:2 }rows: 6, cols: 48                               |
         {7:3 }abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV|
-        {7:4 }WXYZ{1: }                                           |
+        {7:4 }WXYZ^                                            |
         {7:5 }                                                |
         {7:6 }                                                |
         {3:-- TERMINAL --}                                    |
@@ -67,8 +86,8 @@ describe(':terminal window', function()
         {7:       1 }tty ready                                |
         {7:       2 }rows: 6, cols: 48                        |
         {7:       3 }abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO|
-        {7:       4 }WXYZrows: 6, cols: 41                    |
-        {7:       5 }{1: }                                        |
+        {7:       4 }PQRSTUVWXYZrows: 6, cols: 41             |
+        {7:       5 }^                                         |
         {7:       6 }                                         |
         {3:-- TERMINAL --}                                    |
       ]])
@@ -77,9 +96,9 @@ describe(':terminal window', function()
         {7:       1 }tty ready                                |
         {7:       2 }rows: 6, cols: 48                        |
         {7:       3 }abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO|
-        {7:       4 }WXYZrows: 6, cols: 41                    |
+        {7:       4 }PQRSTUVWXYZrows: 6, cols: 41             |
         {7:       5 } abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN|
-        {7:       6 }OPQRSTUVWXYZ{1: }                            |
+        {7:       6 }OPQRSTUVWXYZ^                             |
         {3:-- TERMINAL --}                                    |
       ]])
     end)
@@ -87,12 +106,11 @@ describe(':terminal window', function()
 
   describe("with 'statuscolumn'", function()
     it('wraps text', function()
-      skip(is_os('win')) -- todo(clason): unskip when reenabling reflow
       command([[set number statuscolumn=++%l\ \ ]])
       screen:expect([[
         {7:++1  }tty ready                                    |
         {7:++2  }rows: 6, cols: 45                            |
-        {7:++3  }{1: }                                            |
+        {7:++3  }^                                             |
         {7:++4  }                                             |
         {7:++5  }                                             |
         {7:++6  }                                             |
@@ -105,17 +123,17 @@ describe(':terminal window', function()
         {7:++6  }                                             |
         {7:++7  }                                             |
         {7:++8  }abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRS|
-        {7:++9  }TUVWXYZ{1: }                                     |
+        {7:++9  }TUVWXYZ^                                      |
         {3:-- TERMINAL --}                                    |
       ]])
       feed_data('\nabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
       screen:expect([[
-        {7:++7   }                                            |
-        {7:++8   }abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQR|
-        {7:++9   }TUVWXYZ                                     |
+        {7:++ 7  }                                            |
+        {7:++ 8  }abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQR|
+        {7:++ 9  }STUVWXYZ                                    |
         {7:++10  }abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQR|
-        {7:++11  }TUVWXYZrows: 6, cols: 44                    |
-        {7:++12  }{1: }                                           |
+        {7:++11  }STUVWXYZrows: 6, cols: 44                   |
+        {7:++12  }^                                            |
         {3:-- TERMINAL --}                                    |
       ]])
     end)
@@ -126,7 +144,7 @@ describe(':terminal window', function()
       feed([[<C-\><C-N>]])
       screen:expect([[
         tty ready                                         |
-        {2:^ }                                                 |
+        ^                                                  |
                                                           |*5
       ]])
       feed(':set colorcolumn=20<CR>i')
@@ -135,7 +153,7 @@ describe(':terminal window', function()
     it('wont show the color column', function()
       screen:expect([[
         tty ready                                         |
-        {1: }                                                 |
+        ^                                                  |
                                                           |*4
         {3:-- TERMINAL --}                                    |
       ]])
@@ -152,7 +170,7 @@ describe(':terminal window', function()
         line2                                             |
         line3                                             |
         line4                                             |
-        {1: }                                                 |
+        ^                                                  |
         {3:-- TERMINAL --}                                    |
       ]])
     end)
@@ -166,7 +184,7 @@ describe(':terminal window', function()
         line2                                             |
         line3                                             |
         line4                                             |
-        {2: }                                                 |
+                                                          |
                                                           |
       ]])
     end)
@@ -178,7 +196,7 @@ describe(':terminal with multigrid', function()
 
   before_each(function()
     clear()
-    screen = tt.screen_setup(0, nil, 50, nil, { ext_multigrid = true })
+    screen = tt.setup_screen(0, nil, 50, nil, { ext_multigrid = true })
   end)
 
   it('resizes to requested size', function()
@@ -188,7 +206,7 @@ describe(':terminal with multigrid', function()
       [3:--------------------------------------------------]|
     ## grid 2
       tty ready                                         |
-      {1: }                                                 |
+      ^                                                  |
                                                         |*4
     ## grid 3
       {3:-- TERMINAL --}                                    |
@@ -205,7 +223,7 @@ describe(':terminal with multigrid', function()
       ## grid 2
         tty ready           |
         rows: 10, cols: 20  |
-        {1: }                   |
+        ^                    |
                             |*7
       ## grid 3
         {3:-- TERMINAL --}                                    |
@@ -223,7 +241,7 @@ describe(':terminal with multigrid', function()
       ## grid 2
         rows: 10, cols: 20                                                    |
         rows: 3, cols: 70                                                     |
-        {1: }                                                                     |
+        ^                                                                      |
       ## grid 3
         {3:-- TERMINAL --}                                    |
       ]])
@@ -242,7 +260,7 @@ describe(':terminal with multigrid', function()
         rows: 10, cols: 20                                |
         rows: 3, cols: 70                                 |
         rows: 6, cols: 50                                 |
-        {1: }                                                 |
+        ^                                                  |
                                                           |
       ## grid 3
         {3:-- TERMINAL --}                                    |

@@ -15,7 +15,6 @@
 #include "nvim/digraph.h"
 #include "nvim/drawscreen.h"
 #include "nvim/errors.h"
-#include "nvim/eval/typval_defs.h"
 #include "nvim/eval/userfunc.h"
 #include "nvim/eval/vars.h"
 #include "nvim/ex_getln.h"
@@ -68,81 +67,6 @@ static const char e_wrong_number_of_characters_for_field_str[]
 static const char e_wrong_character_width_for_field_str[]
   = N_("E1512: Wrong character width for field \"%s\"");
 
-static char *(p_ambw_values[]) = { "single", "double", NULL };
-static char *(p_bg_values[]) = { "light", "dark", NULL };
-static char *(p_bkc_values[]) = { "yes", "auto", "no", "breaksymlink", "breakhardlink", NULL };
-static char *(p_bo_values[]) = { "all", "backspace", "cursor", "complete", "copy", "ctrlg", "error",
-                                 "esc", "ex", "hangul", "lang", "mess", "showmatch", "operator",
-                                 "register", "shell", "spell", "wildmode", NULL };
-// Note: Keep this in sync with briopt_check()
-static char *(p_briopt_values[]) = { "shift:", "min:", "sbr", "list:", "column:", NULL };
-// Note: Keep this in sync with diffopt_changed()
-static char *(p_dip_values[]) = { "filler", "context:", "iblank", "icase",
-                                  "iwhite", "iwhiteall", "iwhiteeol", "horizontal", "vertical",
-                                  "closeoff", "hiddenoff", "foldcolumn:", "followwrap", "internal",
-                                  "indent-heuristic", "linematch:", "algorithm:", NULL };
-static char *(p_dip_algorithm_values[]) = { "myers", "minimal", "patience", "histogram", NULL };
-static char *(p_nf_values[]) = { "bin", "octal", "hex", "alpha", "unsigned", NULL };
-static char *(p_ff_values[]) = { FF_UNIX, FF_DOS, FF_MAC, NULL };
-static char *(p_cb_values[]) = { "unnamed", "unnamedplus", NULL };
-static char *(p_cmp_values[]) = { "internal", "keepascii", NULL };
-// Note: Keep this in sync with fill_culopt_flags()
-static char *(p_culopt_values[]) = { "line", "screenline", "number", "both", NULL };
-static char *(p_dy_values[]) = { "lastline", "truncate", "uhex", "msgsep", NULL };
-static char *(p_fdo_values[]) = { "all", "block", "hor", "mark", "percent", "quickfix", "search",
-                                  "tag", "insert", "undo", "jump", NULL };
-// Note: Keep this in sync with spell_check_sps()
-static char *(p_sps_values[]) = { "best", "fast", "double", "expr:", "file:", "timeout:", NULL };
-/// Also used for 'viewoptions'!  Keep in sync with SSOP_ flags.
-static char *(p_ssop_values[]) = { "buffers", "winpos", "resize", "winsize", "localoptions",
-                                   "options", "help", "blank", "globals", "slash", "unix", "sesdir",
-                                   "curdir", "folds", "cursor", "tabpages", "terminal", "skiprtp",
-                                   NULL };
-// Keep in sync with SWB_ flags in option_defs.h
-static char *(p_swb_values[]) = { "useopen", "usetab", "split", "newtab", "vsplit", "uselast",
-                                  NULL };
-static char *(p_spk_values[]) = { "cursor", "screen", "topline", NULL };
-static char *(p_tc_values[]) = { "followic", "ignore", "match", "followscs", "smart", NULL };
-static char *(p_ve_values[]) = { "block", "insert", "all", "onemore", "none", "NONE", NULL };
-// Note: Keep this in sync with check_opt_wim()
-static char *(p_wim_values[]) = { "full", "longest", "list", "lastused", NULL };
-static char *(p_wop_values[]) = { "fuzzy", "tagfile", "pum", NULL };
-static char *(p_wak_values[]) = { "yes", "menu", "no", NULL };
-static char *(p_mousem_values[]) = { "extend", "popup", "popup_setpos", "mac", NULL };
-static char *(p_sel_values[]) = { "inclusive", "exclusive", "old", NULL };
-static char *(p_slm_values[]) = { "mouse", "key", "cmd", NULL };
-static char *(p_km_values[]) = { "startsel", "stopsel", NULL };
-static char *(p_scbopt_values[]) = { "ver", "hor", "jump", NULL };
-static char *(p_debug_values[]) = { "msg", "throw", "beep", NULL };
-static char *(p_ead_values[]) = { "both", "ver", "hor", NULL };
-static char *(p_buftype_values[]) = { "nofile", "nowrite", "quickfix", "help", "acwrite",
-                                      "terminal", "prompt", NULL };
-static char *(p_bufhidden_values[]) = { "hide", "unload", "delete", "wipe", NULL };
-static char *(p_bs_values[]) = { "indent", "eol", "start", "nostop", NULL };
-static char *(p_fdm_values[]) = { "manual", "expr", "marker", "indent",
-                                  "syntax",  "diff", NULL };
-static char *(p_fcl_values[]) = { "all", NULL };
-static char *(p_cot_values[]) = { "menu", "menuone", "longest", "preview", "popup",
-                                  "noinsert", "noselect", "fuzzy", NULL };
-#ifdef BACKSLASH_IN_FILENAME
-static char *(p_csl_values[]) = { "slash", "backslash", NULL };
-#endif
-
-static char *(p_scl_values[]) = { "yes", "no", "auto", "auto:1", "auto:2", "auto:3", "auto:4",
-                                  "auto:5", "auto:6", "auto:7", "auto:8", "auto:9", "yes:1",
-                                  "yes:2", "yes:3", "yes:4", "yes:5", "yes:6", "yes:7", "yes:8",
-                                  "yes:9", "number", NULL };
-static char *(p_fdc_values[]) = { "auto", "auto:1", "auto:2", "auto:3", "auto:4", "auto:5",
-                                  "auto:6", "auto:7", "auto:8", "auto:9", "0", "1", "2", "3", "4",
-                                  "5", "6", "7", "8", "9", NULL };
-static char *(p_spo_values[]) = { "camel", "noplainbuffer", NULL };
-static char *(p_icm_values[]) = { "nosplit", "split", NULL };
-static char *(p_jop_values[]) = { "stack", "view", NULL };
-static char *(p_tpf_values[]) = { "BS", "HT", "FF", "ESC", "DEL", "C0", "C1", NULL };
-static char *(p_rdb_values[]) = { "compositor", "nothrottle", "invalid", "nodelta", "line",
-                                  "flush", NULL };
-static char *(p_sloc_values[]) = { "last", "statusline", "tabline", NULL };
-
 /// All possible flags for 'shm'.
 /// the literal chars before 0 are removed flags. these are safely ignored
 static char SHM_ALL[] = { SHM_RO, SHM_MOD, SHM_LINES,
@@ -155,22 +79,23 @@ static char SHM_ALL[] = { SHM_RO, SHM_MOD, SHM_LINES,
 /// option values.
 void didset_string_options(void)
 {
-  opt_strings_flags(p_cmp, p_cmp_values, &cmp_flags, true);
-  opt_strings_flags(p_bkc, p_bkc_values, &bkc_flags, true);
-  opt_strings_flags(p_bo, p_bo_values, &bo_flags, true);
-  opt_strings_flags(p_cot, p_cot_values, &cot_flags, true);
-  opt_strings_flags(p_ssop, p_ssop_values, &ssop_flags, true);
-  opt_strings_flags(p_vop, p_ssop_values, &vop_flags, true);
-  opt_strings_flags(p_fdo, p_fdo_values, &fdo_flags, true);
-  opt_strings_flags(p_dy, p_dy_values, &dy_flags, true);
-  opt_strings_flags(p_jop, p_jop_values, &jop_flags, true);
-  opt_strings_flags(p_rdb, p_rdb_values, &rdb_flags, true);
-  opt_strings_flags(p_tc, p_tc_values, &tc_flags, false);
-  opt_strings_flags(p_tpf, p_tpf_values, &tpf_flags, true);
-  opt_strings_flags(p_ve, p_ve_values, &ve_flags, true);
-  opt_strings_flags(p_swb, p_swb_values, &swb_flags, true);
-  opt_strings_flags(p_wop, p_wop_values, &wop_flags, true);
-  opt_strings_flags(p_cb, p_cb_values, &cb_flags, true);
+  opt_strings_flags(p_cmp, opt_cmp_values, &cmp_flags, true);
+  opt_strings_flags(p_bkc, opt_bkc_values, &bkc_flags, true);
+  opt_strings_flags(p_bo, opt_bo_values, &bo_flags, true);
+  opt_strings_flags(p_cot, opt_cot_values, &cot_flags, true);
+  opt_strings_flags(p_ssop, opt_ssop_values, &ssop_flags, true);
+  opt_strings_flags(p_vop, opt_ssop_values, &vop_flags, true);
+  opt_strings_flags(p_fdo, opt_fdo_values, &fdo_flags, true);
+  opt_strings_flags(p_dy, opt_dy_values, &dy_flags, true);
+  opt_strings_flags(p_jop, opt_jop_values, &jop_flags, true);
+  opt_strings_flags(p_rdb, opt_rdb_values, &rdb_flags, true);
+  opt_strings_flags(p_tc, opt_tc_values, &tc_flags, false);
+  opt_strings_flags(p_tpf, opt_tpf_values, &tpf_flags, true);
+  opt_strings_flags(p_ve, opt_ve_values, &ve_flags, true);
+  opt_strings_flags(p_swb, opt_swb_values, &swb_flags, true);
+  opt_strings_flags(p_tcl, opt_tcl_values, &tcl_flags, true);
+  opt_strings_flags(p_wop, opt_wop_values, &wop_flags, true);
+  opt_strings_flags(p_cb, opt_cb_values, &cb_flags, true);
 }
 
 char *illegal_char(char *errbuf, size_t errbuflen, int c)
@@ -231,6 +156,7 @@ void check_buf_options(buf_T *buf)
   check_string_option(&buf->b_p_ep);
   check_string_option(&buf->b_p_path);
   check_string_option(&buf->b_p_tags);
+  check_string_option(&buf->b_p_ffu);
   check_string_option(&buf->b_p_tfu);
   check_string_option(&buf->b_p_tc);
   check_string_option(&buf->b_p_dict);
@@ -246,7 +172,6 @@ void check_buf_options(buf_T *buf)
 /// Free the string allocated for an option.
 /// Checks for the string being empty_string_option. This may happen if we're out of memory,
 /// xstrdup() returned NULL, which was replaced by empty_string_option by check_options().
-/// Does NOT check for P_ALLOCED flag!
 void free_string_option(char *p)
 {
   if (p != empty_string_option) {
@@ -279,50 +204,65 @@ static bool valid_filetype(const char *val)
 
 /// Handle setting 'signcolumn' for value 'val'. Store minimum and maximum width.
 ///
+/// @param wcl  when NULL: use "wp->w_p_scl"
+/// @param wp   when NULL: only parse "scl"
+///
 /// @return OK when the value is valid, FAIL otherwise
-int check_signcolumn(win_T *wp)
+int check_signcolumn(char *scl, win_T *wp)
 {
-  char *val = wp->w_p_scl;
+  char *val = empty_string_option;
+  if (scl != NULL) {
+    val = scl;
+  } else if (wp != NULL) {
+    val = wp->w_p_scl;
+  }
+
   if (*val == NUL) {
     return FAIL;
   }
 
-  if (check_opt_strings(val, p_scl_values, false) == OK) {
-    if (!strncmp(val, S_LEN("no"))) {  // no
+  if (check_opt_strings(val, opt_scl_values, false) == OK) {
+    if (wp == NULL) {
+      return OK;
+    }
+    if (!strncmp(val, "no", 2)) {  // no
       wp->w_minscwidth = wp->w_maxscwidth = SCL_NO;
-    } else if (!strncmp(val, S_LEN("nu")) && (wp->w_p_nu || wp->w_p_rnu)) {  // number
+    } else if (!strncmp(val, "nu", 2) && (wp->w_p_nu || wp->w_p_rnu)) {  // number
       wp->w_minscwidth = wp->w_maxscwidth = SCL_NUM;
-    } else if (!strncmp(val, S_LEN("yes:"))) {  // yes:<NUM>
+    } else if (!strncmp(val, "yes:", 4)) {  // yes:<NUM>
       wp->w_minscwidth = wp->w_maxscwidth = val[4] - '0';
     } else if (*val == 'y') {  // yes
       wp->w_minscwidth = wp->w_maxscwidth = 1;
-    } else if (!strncmp(val, S_LEN("auto:"))) {  // auto:<NUM>
+    } else if (!strncmp(val, "auto:", 5)) {  // auto:<NUM>
       wp->w_minscwidth = 0;
       wp->w_maxscwidth = val[5] - '0';
     } else {  // auto
       wp->w_minscwidth = 0;
       wp->w_maxscwidth = 1;
     }
-    return OK;
+  } else {
+    if (strncmp(val, "auto:", 5) != 0
+        || strlen(val) != 8
+        || !ascii_isdigit(val[5])
+        || val[6] != '-'
+        || !ascii_isdigit(val[7])) {
+      return FAIL;
+    }
+    // auto:<NUM>-<NUM>
+    int min = val[5] - '0';
+    int max = val[7] - '0';
+    if (min < 1 || max < 2 || min > 8 || min >= max) {
+      return FAIL;
+    }
+    if (wp == NULL) {
+      return OK;
+    }
+    wp->w_minscwidth = min;
+    wp->w_maxscwidth = max;
   }
 
-  if (strncmp(val, S_LEN("auto:")) != 0
-      || strlen(val) != 8
-      || !ascii_isdigit(val[5])
-      || val[6] != '-'
-      || !ascii_isdigit(val[7])) {
-    return FAIL;
-  }
-
-  // auto:<NUM>-<NUM>
-  int min = val[5] - '0';
-  int max = val[7] - '0';
-  if (min < 1 || max < 2 || min > 8 || min >= max) {
-    return FAIL;
-  }
-
-  wp->w_minscwidth = min;
-  wp->w_maxscwidth = max;
+  int scwidth = wp->w_minscwidth <= 0 ? 0 : MIN(wp->w_maxscwidth, wp->w_scwidth);
+  wp->w_scwidth = MAX(wp->w_minscwidth, scwidth);
   return OK;
 }
 
@@ -401,15 +341,15 @@ const char *check_stl_option(char *s)
 /// often illegal in a file name. Be more permissive if "secure" is off.
 bool check_illegal_path_names(char *val, uint32_t flags)
 {
-  return (((flags & P_NFNAME)
+  return (((flags & kOptFlagNFname)
            && strpbrk(val, (secure ? "/\\*?[|;&<>\r\n" : "/\\*?[<>\r\n")) != NULL)
-          || ((flags & P_NDNAME)
+          || ((flags & kOptFlagNDname)
               && strpbrk(val, "*?[|;&<>\r\n") != NULL));
 }
 
 /// An option that accepts a list of flags is changed.
 /// e.g. 'viewoptions', 'switchbuf', 'casemap', etc.
-static const char *did_set_opt_flags(char *val, char **values, unsigned *flagp, bool list)
+static const char *did_set_opt_flags(char *val, const char **values, unsigned *flagp, bool list)
 {
   if (opt_strings_flags(val, values, flagp, list) != OK) {
     return e_invarg;
@@ -419,7 +359,7 @@ static const char *did_set_opt_flags(char *val, char **values, unsigned *flagp, 
 
 /// An option that accepts a list of string values is changed.
 /// e.g. 'nrformats', 'scrollopt', 'wildoptions', etc.
-static const char *did_set_opt_strings(char *val, char **values, bool list)
+static const char *did_set_opt_strings(char *val, const char **values, bool list)
 {
   return did_set_opt_flags(val, values, NULL, list);
 }
@@ -437,7 +377,7 @@ static const char *did_set_option_listflag(char *val, char *flags, char *errbuf,
 }
 
 /// Expand an option that accepts a list of string values.
-static int expand_set_opt_string(optexpand_T *args, char **values, size_t numValues,
+static int expand_set_opt_string(optexpand_T *args, const char **values, size_t numValues,
                                  int *numMatches, char ***matches)
 {
   regmatch_T *regmatch = args->oe_regmatch;
@@ -454,7 +394,7 @@ static int expand_set_opt_string(optexpand_T *args, char **values, size_t numVal
     (*matches)[count++] = xstrdup(option_val);
   }
 
-  for (char **val = values; *val != NULL; val++) {
+  for (const char **val = values; *val != NULL; val++) {
     if (include_orig_val && *option_val != NUL) {
       if (strcmp(*val, option_val) == 0) {
         continue;
@@ -549,7 +489,7 @@ static int expand_set_opt_listflag(optexpand_T *args, char *flags, int *numMatch
 /// The 'ambiwidth' option is changed.
 const char *did_set_ambiwidth(optset_T *args FUNC_ATTR_UNUSED)
 {
-  if (check_opt_strings(p_ambw, p_ambw_values, false) != OK) {
+  if (check_opt_strings(p_ambw, opt_ambw_values, false) != OK) {
     return e_invarg;
   }
   return check_chars_options();
@@ -558,8 +498,8 @@ const char *did_set_ambiwidth(optset_T *args FUNC_ATTR_UNUSED)
 int expand_set_ambiwidth(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_ambw_values,
-                               ARRAY_SIZE(p_ambw_values) - 1,
+                               opt_ambw_values,
+                               ARRAY_SIZE(opt_ambw_values) - 1,
                                numMatches,
                                matches);
 }
@@ -567,7 +507,7 @@ int expand_set_ambiwidth(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'background' option is changed.
 const char *did_set_background(optset_T *args)
 {
-  if (check_opt_strings(p_bg, p_bg_values, false) != OK) {
+  if (check_opt_strings(p_bg, opt_bg_values, false) != OK) {
     return e_invarg;
   }
 
@@ -596,8 +536,8 @@ const char *did_set_background(optset_T *args)
 int expand_set_background(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_bg_values,
-                               ARRAY_SIZE(p_bg_values) - 1,
+                               opt_bg_values,
+                               ARRAY_SIZE(opt_bg_values) - 1,
                                numMatches,
                                matches);
 }
@@ -609,7 +549,7 @@ const char *did_set_backspace(optset_T *args FUNC_ATTR_UNUSED)
     if (*p_bs != '2') {
       return e_invarg;
     }
-  } else if (check_opt_strings(p_bs, p_bs_values, true) != OK) {
+  } else if (check_opt_strings(p_bs, opt_bs_values, true) != OK) {
     return e_invarg;
   }
   return NULL;
@@ -618,8 +558,8 @@ const char *did_set_backspace(optset_T *args FUNC_ATTR_UNUSED)
 int expand_set_backspace(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_bs_values,
-                               ARRAY_SIZE(p_bs_values) - 1,
+                               opt_bs_values,
+                               ARRAY_SIZE(opt_bs_values) - 1,
                                numMatches,
                                matches);
 }
@@ -636,21 +576,24 @@ const char *did_set_backupcopy(optset_T *args)
   if (opt_flags & OPT_LOCAL) {
     bkc = buf->b_p_bkc;
     flags = &buf->b_bkc_flags;
+  } else if (!(opt_flags & OPT_GLOBAL)) {
+    // When using :set, clear the local flags.
+    buf->b_bkc_flags = 0;
   }
 
   if ((opt_flags & OPT_LOCAL) && *bkc == NUL) {
     // make the local value empty: use the global value
     *flags = 0;
   } else {
-    if (opt_strings_flags(bkc, p_bkc_values, flags, true) != OK) {
+    if (opt_strings_flags(bkc, opt_bkc_values, flags, true) != OK) {
       return e_invarg;
     }
 
-    if (((*flags & BKC_AUTO) != 0)
-        + ((*flags & BKC_YES) != 0)
-        + ((*flags & BKC_NO) != 0) != 1) {
+    if (((*flags & kOptBkcFlagAuto) != 0)
+        + ((*flags & kOptBkcFlagYes) != 0)
+        + ((*flags & kOptBkcFlagNo) != 0) != 1) {
       // Must have exactly one of "auto", "yes"  and "no".
-      opt_strings_flags(oldval, p_bkc_values, flags, true);
+      opt_strings_flags(oldval, opt_bkc_values, flags, true);
       return e_invarg;
     }
   }
@@ -661,8 +604,8 @@ const char *did_set_backupcopy(optset_T *args)
 int expand_set_backupcopy(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_bkc_values,
-                               ARRAY_SIZE(p_bkc_values) - 1,
+                               opt_bkc_values,
+                               ARRAY_SIZE(opt_bkc_values) - 1,
                                numMatches,
                                matches);
 }
@@ -681,14 +624,14 @@ const char *did_set_backupext_or_patchmode(optset_T *args FUNC_ATTR_UNUSED)
 /// The 'belloff' option is changed.
 const char *did_set_belloff(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_flags(p_bo, p_bo_values, &bo_flags, true);
+  return did_set_opt_flags(p_bo, opt_bo_values, &bo_flags, true);
 }
 
 int expand_set_belloff(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_bo_values,
-                               ARRAY_SIZE(p_bo_values) - 1,
+                               opt_bo_values,
+                               ARRAY_SIZE(opt_bo_values) - 1,
                                numMatches,
                                matches);
 }
@@ -713,11 +656,14 @@ const char *did_set_breakat(optset_T *args FUNC_ATTR_UNUSED)
 const char *did_set_breakindentopt(optset_T *args)
 {
   win_T *win = (win_T *)args->os_win;
-  if (briopt_check(win) == FAIL) {
+  char **varp = (char **)args->os_varp;
+
+  if (briopt_check(*varp, varp == &win->w_p_briopt ? win : NULL) == FAIL) {
     return e_invarg;
   }
+
   // list setting requires a redraw
-  if (win == curwin && win->w_briopt_list) {
+  if (varp == &win->w_p_briopt && win->w_briopt_list) {
     redraw_all_later(UPD_NOT_VALID);
   }
 
@@ -727,8 +673,8 @@ const char *did_set_breakindentopt(optset_T *args)
 int expand_set_breakindentopt(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_briopt_values,
-                               ARRAY_SIZE(p_briopt_values) - 1,
+                               opt_briopt_values,
+                               ARRAY_SIZE(opt_briopt_values) - 1,
                                numMatches,
                                matches);
 }
@@ -737,14 +683,14 @@ int expand_set_breakindentopt(optexpand_T *args, int *numMatches, char ***matche
 const char *did_set_bufhidden(optset_T *args)
 {
   buf_T *buf = (buf_T *)args->os_buf;
-  return did_set_opt_strings(buf->b_p_bh, p_bufhidden_values, false);
+  return did_set_opt_strings(buf->b_p_bh, opt_bh_values, false);
 }
 
 int expand_set_bufhidden(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_bufhidden_values,
-                               ARRAY_SIZE(p_bufhidden_values) - 1,
+                               opt_bh_values,
+                               ARRAY_SIZE(opt_bh_values) - 1,
                                numMatches,
                                matches);
 }
@@ -757,7 +703,7 @@ const char *did_set_buftype(optset_T *args)
   // When 'buftype' is set, check for valid value.
   if ((buf->terminal && buf->b_p_bt[0] != 't')
       || (!buf->terminal && buf->b_p_bt[0] == 't')
-      || check_opt_strings(buf->b_p_bt, p_buftype_values, false) != OK) {
+      || check_opt_strings(buf->b_p_bt, opt_bt_values, false) != OK) {
     return e_invarg;
   }
   if (win->w_status_height || global_stl_height()) {
@@ -772,8 +718,8 @@ const char *did_set_buftype(optset_T *args)
 int expand_set_buftype(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_buftype_values,
-                               ARRAY_SIZE(p_buftype_values) - 1,
+                               opt_bt_values,
+                               ARRAY_SIZE(opt_bt_values) - 1,
                                numMatches,
                                matches);
 }
@@ -781,14 +727,14 @@ int expand_set_buftype(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'casemap' option is changed.
 const char *did_set_casemap(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_flags(p_cmp, p_cmp_values, &cmp_flags, true);
+  return did_set_opt_flags(p_cmp, opt_cmp_values, &cmp_flags, true);
 }
 
 int expand_set_casemap(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_cmp_values,
-                               ARRAY_SIZE(p_cmp_values) - 1,
+                               opt_cmp_values,
+                               ARRAY_SIZE(opt_cmp_values) - 1,
                                numMatches,
                                matches);
 }
@@ -867,10 +813,11 @@ int expand_set_chars_option(optexpand_T *args, int *numMatches, char ***matches)
 }
 
 /// The 'cinoptions' option is changed.
-const char *did_set_cinoptions(optset_T *args FUNC_ATTR_UNUSED)
+const char *did_set_cinoptions(optset_T *args)
 {
+  buf_T *buf = (buf_T *)args->os_buf;
   // TODO(vim): recognize errors
-  parse_cino(curbuf);
+  parse_cino(buf);
 
   return NULL;
 }
@@ -878,14 +825,14 @@ const char *did_set_cinoptions(optset_T *args FUNC_ATTR_UNUSED)
 /// The 'clipboard' option is changed.
 const char *did_set_clipboard(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_flags(p_cb, p_cb_values, &cb_flags, true);
+  return did_set_opt_flags(p_cb, opt_cb_values, &cb_flags, true);
 }
 
 int expand_set_clipboard(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_cb_values,
-                               ARRAY_SIZE(p_cb_values) - 1,
+                               opt_cb_values,
+                               ARRAY_SIZE(opt_cb_values) - 1,
                                numMatches,
                                matches);
 }
@@ -894,7 +841,8 @@ int expand_set_clipboard(optexpand_T *args, int *numMatches, char ***matches)
 const char *did_set_colorcolumn(optset_T *args)
 {
   win_T *win = (win_T *)args->os_win;
-  return check_colorcolumn(win);
+  char **varp = (char **)args->os_varp;
+  return check_colorcolumn(*varp, varp == &win->w_p_cc ? win : NULL);
 }
 
 /// The 'comments' option is changed.
@@ -982,14 +930,56 @@ const char *did_set_complete(optset_T *args)
 
 int expand_set_complete(optexpand_T *args, int *numMatches, char ***matches)
 {
-  static char *(p_cpt_values[]) = {
-    ".", "w", "b", "u", "k", "kspell", "s", "i", "d", "]", "t", "U", "f", NULL
-  };
   return expand_set_opt_string(args,
-                               p_cpt_values,
-                               ARRAY_SIZE(p_cpt_values) - 1,
+                               opt_cpt_values,
+                               ARRAY_SIZE(opt_cpt_values) - 1,
                                numMatches,
                                matches);
+}
+
+/// The 'completeitemalign' option is changed.
+const char *did_set_completeitemalign(optset_T *args)
+{
+  char *p = p_cia;
+  unsigned new_cia_flags = 0;
+  bool seen[3] = { false, false, false };
+  int count = 0;
+  char buf[10];
+  while (*p) {
+    copy_option_part(&p, buf, sizeof(buf), ",");
+    if (count >= 3) {
+      return e_invarg;
+    }
+    if (strequal(buf, "abbr")) {
+      if (seen[CPT_ABBR]) {
+        return e_invarg;
+      }
+      new_cia_flags = new_cia_flags * 10 + CPT_ABBR;
+      seen[CPT_ABBR] = true;
+      count++;
+    } else if (strequal(buf, "kind")) {
+      if (seen[CPT_KIND]) {
+        return e_invarg;
+      }
+      new_cia_flags = new_cia_flags * 10 + CPT_KIND;
+      seen[CPT_KIND] = true;
+      count++;
+    } else if (strequal(buf, "menu")) {
+      if (seen[CPT_MENU]) {
+        return e_invarg;
+      }
+      new_cia_flags = new_cia_flags * 10 + CPT_MENU;
+      seen[CPT_MENU] = true;
+      count++;
+    } else {
+      return e_invarg;
+    }
+  }
+  if (new_cia_flags == 0 || count != 3) {
+    return e_invarg;
+  }
+  cia_flags = new_cia_flags;
+  return NULL;
 }
 
 /// The 'completeopt' option is changed.
@@ -1002,13 +992,16 @@ const char *did_set_completeopt(optset_T *args FUNC_ATTR_UNUSED)
   if (args->os_flags & OPT_LOCAL) {
     cot = buf->b_p_cot;
     flags = &buf->b_cot_flags;
+  } else if (!(args->os_flags & OPT_GLOBAL)) {
+    // When using :set, clear the local flags.
+    buf->b_cot_flags = 0;
   }
 
-  if (check_opt_strings(cot, p_cot_values, true) != OK) {
+  if (check_opt_strings(cot, opt_cot_values, true) != OK) {
     return e_invarg;
   }
 
-  if (opt_strings_flags(cot, p_cot_values, flags, true) != OK) {
+  if (opt_strings_flags(cot, opt_cot_values, flags, true) != OK) {
     return e_invarg;
   }
 
@@ -1018,8 +1011,8 @@ const char *did_set_completeopt(optset_T *args FUNC_ATTR_UNUSED)
 int expand_set_completeopt(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_cot_values,
-                               ARRAY_SIZE(p_cot_values) - 1,
+                               opt_cot_values,
+                               ARRAY_SIZE(opt_cot_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1029,8 +1022,8 @@ int expand_set_completeopt(optexpand_T *args, int *numMatches, char ***matches)
 const char *did_set_completeslash(optset_T *args)
 {
   buf_T *buf = (buf_T *)args->os_buf;
-  if (check_opt_strings(p_csl, p_csl_values, false) != OK
-      || check_opt_strings(buf->b_p_csl, p_csl_values, false) != OK) {
+  if (check_opt_strings(p_csl, opt_csl_values, false) != OK
+      || check_opt_strings(buf->b_p_csl, opt_csl_values, false) != OK) {
     return e_invarg;
   }
   return NULL;
@@ -1039,8 +1032,8 @@ const char *did_set_completeslash(optset_T *args)
 int expand_set_completeslash(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_csl_values,
-                               ARRAY_SIZE(p_csl_values) - 1,
+                               opt_csl_values,
+                               ARRAY_SIZE(opt_csl_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1089,8 +1082,8 @@ const char *did_set_cursorlineopt(optset_T *args)
 int expand_set_cursorlineopt(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_culopt_values,
-                               ARRAY_SIZE(p_culopt_values) - 1,
+                               opt_culopt_values,
+                               ARRAY_SIZE(opt_culopt_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1098,14 +1091,14 @@ int expand_set_cursorlineopt(optexpand_T *args, int *numMatches, char ***matches
 /// The 'debug' option is changed.
 const char *did_set_debug(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_strings(p_debug, p_debug_values, false);
+  return did_set_opt_strings(p_debug, opt_debug_values, false);
 }
 
 int expand_set_debug(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_debug_values,
-                               ARRAY_SIZE(p_debug_values) - 1,
+                               opt_debug_values,
+                               ARRAY_SIZE(opt_debug_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1129,8 +1122,8 @@ int expand_set_diffopt(optexpand_T *args, int *numMatches, char ***matches)
     if (xp->xp_pattern - args->oe_set_arg >= (int)algo_len
         && strncmp(xp->xp_pattern - algo_len, "algorithm:", algo_len) == 0) {
       return expand_set_opt_string(args,
-                                   p_dip_algorithm_values,
-                                   ARRAY_SIZE(p_dip_algorithm_values) - 1,
+                                   opt_dip_algorithm_values,
+                                   ARRAY_SIZE(opt_dip_algorithm_values) - 1,
                                    numMatches,
                                    matches);
     }
@@ -1138,8 +1131,8 @@ int expand_set_diffopt(optexpand_T *args, int *numMatches, char ***matches)
   }
 
   return expand_set_opt_string(args,
-                               p_dip_values,
-                               ARRAY_SIZE(p_dip_values) - 1,
+                               opt_dip_values,
+                               ARRAY_SIZE(opt_dip_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1147,7 +1140,7 @@ int expand_set_diffopt(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'display' option is changed.
 const char *did_set_display(optset_T *args FUNC_ATTR_UNUSED)
 {
-  if (opt_strings_flags(p_dy, p_dy_values, &dy_flags, true) != OK) {
+  if (opt_strings_flags(p_dy, opt_dy_values, &dy_flags, true) != OK) {
     return e_invarg;
   }
   init_chartab();
@@ -1158,8 +1151,8 @@ const char *did_set_display(optset_T *args FUNC_ATTR_UNUSED)
 int expand_set_display(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_dy_values,
-                               ARRAY_SIZE(p_dy_values) - 1,
+                               opt_dy_values,
+                               ARRAY_SIZE(opt_dy_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1167,14 +1160,14 @@ int expand_set_display(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'eadirection' option is changed.
 const char *did_set_eadirection(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_strings(p_ead, p_ead_values, false);
+  return did_set_opt_strings(p_ead, opt_ead_values, false);
 }
 
 int expand_set_eadirection(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_ead_values,
-                               ARRAY_SIZE(p_ead_values) - 1,
+                               opt_ead_values,
+                               ARRAY_SIZE(opt_ead_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1259,7 +1252,7 @@ const char *did_set_fileformat(optset_T *args)
   int opt_flags = args->os_flags;
   if (!MODIFIABLE(buf) && !(opt_flags & OPT_GLOBAL)) {
     return e_modifiable;
-  } else if (check_opt_strings(*varp, p_ff_values, false) != OK) {
+  } else if (check_opt_strings(*varp, opt_ff_values, false) != OK) {
     return e_invarg;
   }
   redraw_titles();
@@ -1276,8 +1269,8 @@ const char *did_set_fileformat(optset_T *args)
 int expand_set_fileformat(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_ff_values,
-                               ARRAY_SIZE(p_ff_values) - 1,
+                               opt_ff_values,
+                               ARRAY_SIZE(opt_ff_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1286,17 +1279,17 @@ int expand_set_fileformat(optexpand_T *args, int *numMatches, char ***matches)
 /// fileformat options.
 char *get_fileformat_name(expand_T *xp FUNC_ATTR_UNUSED, int idx)
 {
-  if (idx >= (int)ARRAY_SIZE(p_ff_values)) {
+  if (idx >= (int)ARRAY_SIZE(opt_ff_values)) {
     return NULL;
   }
 
-  return p_ff_values[idx];
+  return (char *)opt_ff_values[idx];
 }
 
 /// The 'fileformats' option is changed.
 const char *did_set_fileformats(optset_T *args)
 {
-  return did_set_opt_strings(p_ffs, p_ff_values, true);
+  return did_set_opt_strings(p_ffs, opt_ff_values, true);
 }
 
 /// The 'filetype' or the 'syntax' option is changed.
@@ -1310,7 +1303,7 @@ const char *did_set_filetype_or_syntax(optset_T *args)
 
   args->os_value_changed = strcmp(args->os_oldval.string.data, *varp) != 0;
 
-  // Since we check the value, there is no need to set P_INSECURE,
+  // Since we check the value, there is no need to set kOptFlagInsecure,
   // even when the value comes from a modeline.
   args->os_value_checked = true;
 
@@ -1320,14 +1313,14 @@ const char *did_set_filetype_or_syntax(optset_T *args)
 /// The 'foldclose' option is changed.
 const char *did_set_foldclose(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_strings(p_fcl, p_fcl_values, true);
+  return did_set_opt_strings(p_fcl, opt_fcl_values, true);
 }
 
 int expand_set_foldclose(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_fcl_values,
-                               ARRAY_SIZE(p_fcl_values) - 1,
+                               opt_fcl_values,
+                               ARRAY_SIZE(opt_fcl_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1336,7 +1329,7 @@ int expand_set_foldclose(optexpand_T *args, int *numMatches, char ***matches)
 const char *did_set_foldcolumn(optset_T *args)
 {
   char **varp = (char **)args->os_varp;
-  if (**varp == NUL || check_opt_strings(*varp, p_fdc_values, false) != OK) {
+  if (**varp == NUL || check_opt_strings(*varp, opt_fdc_values, false) != OK) {
     return e_invarg;
   }
   return NULL;
@@ -1345,8 +1338,8 @@ const char *did_set_foldcolumn(optset_T *args)
 int expand_set_foldcolumn(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_fdc_values,
-                               ARRAY_SIZE(p_fdc_values) - 1,
+                               opt_fdc_values,
+                               ARRAY_SIZE(opt_fdc_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1399,8 +1392,7 @@ const char *did_set_foldmethod(optset_T *args)
 {
   win_T *win = (win_T *)args->os_win;
   char **varp = (char **)args->os_varp;
-  if (check_opt_strings(*varp, p_fdm_values, false) != OK
-      || *win->w_p_fdm == NUL) {
+  if (check_opt_strings(*varp, opt_fdm_values, false) != OK || **varp == NUL) {
     return e_invarg;
   }
   foldUpdateAll(win);
@@ -1413,8 +1405,8 @@ const char *did_set_foldmethod(optset_T *args)
 int expand_set_foldmethod(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_fdm_values,
-                               ARRAY_SIZE(p_fdm_values) - 1,
+                               opt_fdm_values,
+                               ARRAY_SIZE(opt_fdm_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1422,14 +1414,14 @@ int expand_set_foldmethod(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'foldopen' option is changed.
 const char *did_set_foldopen(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_flags(p_fdo, p_fdo_values, &fdo_flags, true);
+  return did_set_opt_flags(p_fdo, opt_fdo_values, &fdo_flags, true);
 }
 
 int expand_set_foldopen(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_fdo_values,
-                               ARRAY_SIZE(p_fdo_values) - 1,
+                               opt_fdo_values,
+                               ARRAY_SIZE(opt_fdo_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1512,16 +1504,32 @@ const char *did_set_inccommand(optset_T *args FUNC_ATTR_UNUSED)
   if (cmdpreview) {
     return e_invarg;
   }
-  return did_set_opt_strings(p_icm, p_icm_values, false);
+  return did_set_opt_strings(p_icm, opt_icm_values, false);
 }
 
 int expand_set_inccommand(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_icm_values,
-                               ARRAY_SIZE(p_icm_values) - 1,
+                               opt_icm_values,
+                               ARRAY_SIZE(opt_icm_values) - 1,
                                numMatches,
                                matches);
+}
+
+/// The 'iskeyword' option is changed.
+const char *did_set_iskeyword(optset_T *args)
+{
+  char **varp = (char **)args->os_varp;
+
+  if (varp == &p_isk) {       // only check for global-value
+    if (check_isopt(*varp) == FAIL) {
+      return e_invarg;
+    }
+  } else {                    // fallthrough for local-value
+    return did_set_isopt(args);
+  }
+
+  return NULL;
 }
 
 /// The 'isident' or the 'iskeyword' or the 'isprint' or the 'isfname' option is
@@ -1529,7 +1537,7 @@ int expand_set_inccommand(optexpand_T *args, int *numMatches, char ***matches)
 const char *did_set_isopt(optset_T *args)
 {
   buf_T *buf = (buf_T *)args->os_buf;
-  // 'isident', 'iskeyword', 'isprint or 'isfname' option: refill g_chartab[]
+  // 'isident', 'iskeyword', 'isprint' or 'isfname' option: refill g_chartab[]
   // If the new option is invalid, use old value.
   // 'lisp' option: refill g_chartab[] for '-' char
   if (buf_init_chartab(buf, true) == FAIL) {
@@ -1542,14 +1550,14 @@ const char *did_set_isopt(optset_T *args)
 /// The 'jumpoptions' option is changed.
 const char *did_set_jumpoptions(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_flags(p_jop, p_jop_values, &jop_flags, true);
+  return did_set_opt_flags(p_jop, opt_jop_values, &jop_flags, true);
 }
 
 int expand_set_jumpoptions(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_jop_values,
-                               ARRAY_SIZE(p_jop_values) - 1,
+                               opt_jop_values,
+                               ARRAY_SIZE(opt_jop_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1576,7 +1584,7 @@ const char *did_set_keymap(optset_T *args)
 
   secure = secure_save;
 
-  // Since we check the value, there is no need to set P_INSECURE,
+  // Since we check the value, there is no need to set kOptFlagInsecure,
   // even when the value comes from a modeline.
   args->os_value_checked = true;
 
@@ -1609,7 +1617,7 @@ const char *did_set_keymap(optset_T *args)
 /// The 'keymodel' option is changed.
 const char *did_set_keymodel(optset_T *args FUNC_ATTR_UNUSED)
 {
-  if (check_opt_strings(p_km, p_km_values, true) != OK) {
+  if (check_opt_strings(p_km, opt_km_values, true) != OK) {
     return e_invarg;
   }
   km_stopsel = (vim_strchr(p_km, 'o') != NULL);
@@ -1620,8 +1628,8 @@ const char *did_set_keymodel(optset_T *args FUNC_ATTR_UNUSED)
 int expand_set_keymodel(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_km_values,
-                               ARRAY_SIZE(p_km_values) - 1,
+                               opt_km_values,
+                               ARRAY_SIZE(opt_km_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1639,10 +1647,9 @@ const char *did_set_lispoptions(optset_T *args)
 
 int expand_set_lispoptions(optexpand_T *args, int *numMatches, char ***matches)
 {
-  static char *(p_lop_values[]) = { "expr:0", "expr:1", NULL };
   return expand_set_opt_string(args,
-                               p_lop_values,
-                               ARRAY_SIZE(p_lop_values) - 1,
+                               opt_lop_values,
+                               ARRAY_SIZE(opt_lop_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1674,6 +1681,24 @@ const char *did_set_matchpairs(optset_T *args)
   return NULL;
 }
 
+/// Process the updated 'messagesopt' option value.
+const char *did_set_messagesopt(optset_T *args FUNC_ATTR_UNUSED)
+{
+  if (messagesopt_changed() == FAIL) {
+    return e_invarg;
+  }
+  return NULL;
+}
+
+int expand_set_messagesopt(optexpand_T *args, int *numMatches, char ***matches)
+{
+  return expand_set_opt_string(args,
+                               opt_mopt_values,
+                               ARRAY_SIZE(opt_mopt_values) - 1,
+                               numMatches,
+                               matches);
+}
+
 /// The 'mkspellmem' option is changed.
 const char *did_set_mkspellmem(optset_T *args FUNC_ATTR_UNUSED)
 {
@@ -1699,14 +1724,14 @@ int expand_set_mouse(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'mousemodel' option is changed.
 const char *did_set_mousemodel(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_strings(p_mousem, p_mousem_values, false);
+  return did_set_opt_strings(p_mousem, opt_mousem_values, false);
 }
 
 int expand_set_mousemodel(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_mousem_values,
-                               ARRAY_SIZE(p_mousem_values) - 1,
+                               opt_mousem_values,
+                               ARRAY_SIZE(opt_mousem_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1732,9 +1757,9 @@ const char *did_set_mousescroll(optset_T *args FUNC_ATTR_UNUSED)
 
     OptInt *direction;
 
-    if (memcmp(string, S_LEN("ver:")) == 0) {
+    if (memcmp(string, "ver:", 4) == 0) {
       direction = &vertical;
-    } else if (memcmp(string, S_LEN("hor:")) == 0) {
+    } else if (memcmp(string, "hor:", 4) == 0) {
       direction = &horizontal;
     } else {
       return e_invarg;
@@ -1778,10 +1803,9 @@ const char *did_set_mousescroll(optset_T *args FUNC_ATTR_UNUSED)
 
 int expand_set_mousescroll(optexpand_T *args, int *numMatches, char ***matches)
 {
-  static char *(p_mousescroll_values[]) = { "hor:", "ver:", NULL };
   return expand_set_opt_string(args,
-                               p_mousescroll_values,
-                               ARRAY_SIZE(p_mousescroll_values) - 1,
+                               opt_mousescroll_values,
+                               ARRAY_SIZE(opt_mousescroll_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1791,14 +1815,14 @@ const char *did_set_nrformats(optset_T *args)
 {
   char **varp = (char **)args->os_varp;
 
-  return did_set_opt_strings(*varp, p_nf_values, true);
+  return did_set_opt_strings(*varp, opt_nf_values, true);
 }
 
 int expand_set_nrformats(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_nf_values,
-                               ARRAY_SIZE(p_nf_values) - 1,
+                               opt_nf_values,
+                               ARRAY_SIZE(opt_nf_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1822,7 +1846,7 @@ const char *did_set_optexpr(optset_T *args)
 /// The 'redrawdebug' option is changed.
 const char *did_set_redrawdebug(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_flags(p_rdb, p_rdb_values, &rdb_flags, true);
+  return did_set_opt_flags(p_rdb, opt_rdb_values, &rdb_flags, true);
 }
 
 /// The 'rightleftcmd' option is changed.
@@ -1840,10 +1864,9 @@ const char *did_set_rightleftcmd(optset_T *args)
 
 int expand_set_rightleftcmd(optexpand_T *args, int *numMatches, char ***matches)
 {
-  static char *(p_rlc_values[]) = { "search", NULL };
   return expand_set_opt_string(args,
-                               p_rlc_values,
-                               ARRAY_SIZE(p_rlc_values) - 1,
+                               opt_rlc_values,
+                               ARRAY_SIZE(opt_rlc_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1857,14 +1880,14 @@ const char *did_set_rulerformat(optset_T *args)
 /// The 'scrollopt' option is changed.
 const char *did_set_scrollopt(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_strings(p_sbo, p_scbopt_values, true);
+  return did_set_opt_strings(p_sbo, opt_sbo_values, true);
 }
 
 int expand_set_scrollopt(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_scbopt_values,
-                               ARRAY_SIZE(p_scbopt_values) - 1,
+                               opt_sbo_values,
+                               ARRAY_SIZE(opt_sbo_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1872,7 +1895,7 @@ int expand_set_scrollopt(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'selection' option is changed.
 const char *did_set_selection(optset_T *args FUNC_ATTR_UNUSED)
 {
-  if (*p_sel == NUL || check_opt_strings(p_sel, p_sel_values, false) != OK) {
+  if (*p_sel == NUL || check_opt_strings(p_sel, opt_sel_values, false) != OK) {
     return e_invarg;
   }
   if (VIsual_active) {
@@ -1885,8 +1908,8 @@ const char *did_set_selection(optset_T *args FUNC_ATTR_UNUSED)
 int expand_set_selection(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_sel_values,
-                               ARRAY_SIZE(p_sel_values) - 1,
+                               opt_sel_values,
+                               ARRAY_SIZE(opt_sel_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1894,14 +1917,14 @@ int expand_set_selection(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'selectmode' option is changed.
 const char *did_set_selectmode(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_strings(p_slm, p_slm_values, true);
+  return did_set_opt_strings(p_slm, opt_slm_values, true);
 }
 
 int expand_set_selectmode(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_slm_values,
-                               ARRAY_SIZE(p_slm_values) - 1,
+                               opt_slm_values,
+                               ARRAY_SIZE(opt_slm_values) - 1,
                                numMatches,
                                matches);
 }
@@ -1909,13 +1932,13 @@ int expand_set_selectmode(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'sessionoptions' option is changed.
 const char *did_set_sessionoptions(optset_T *args)
 {
-  if (opt_strings_flags(p_ssop, p_ssop_values, &ssop_flags, true) != OK) {
+  if (opt_strings_flags(p_ssop, opt_ssop_values, &ssop_flags, true) != OK) {
     return e_invarg;
   }
-  if ((ssop_flags & SSOP_CURDIR) && (ssop_flags & SSOP_SESDIR)) {
+  if ((ssop_flags & kOptSsopFlagCurdir) && (ssop_flags & kOptSsopFlagSesdir)) {
     // Don't allow both "sesdir" and "curdir".
     const char *oldval = args->os_oldval.string.data;
-    opt_strings_flags(oldval, p_ssop_values, &ssop_flags, true);
+    opt_strings_flags(oldval, opt_ssop_values, &ssop_flags, true);
     return e_invarg;
   }
   return NULL;
@@ -1924,8 +1947,8 @@ const char *did_set_sessionoptions(optset_T *args)
 int expand_set_sessionoptions(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_ssop_values,
-                               ARRAY_SIZE(p_ssop_values) - 1,
+                               opt_ssop_values,
+                               ARRAY_SIZE(opt_ssop_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2009,7 +2032,7 @@ const char *did_set_showbreak(optset_T *args)
 /// The 'showcmdloc' option is changed.
 const char *did_set_showcmdloc(optset_T *args FUNC_ATTR_UNUSED)
 {
-  const char *errmsg = did_set_opt_strings(p_sloc, p_sloc_values, false);
+  const char *errmsg = did_set_opt_strings(p_sloc, opt_sloc_values, false);
 
   if (errmsg == NULL) {
     comp_col();
@@ -2021,8 +2044,8 @@ const char *did_set_showcmdloc(optset_T *args FUNC_ATTR_UNUSED)
 int expand_set_showcmdloc(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_sloc_values,
-                               ARRAY_SIZE(p_sloc_values) - 1,
+                               opt_sloc_values,
+                               ARRAY_SIZE(opt_sloc_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2031,12 +2054,11 @@ int expand_set_showcmdloc(optexpand_T *args, int *numMatches, char ***matches)
 const char *did_set_signcolumn(optset_T *args)
 {
   win_T *win = (win_T *)args->os_win;
+  char **varp = (char **)args->os_varp;
   const char *oldval = args->os_oldval.string.data;
-  if (check_signcolumn(win) != OK) {
+  if (check_signcolumn(*varp, varp == &win->w_p_scl ? win : NULL) != OK) {
     return e_invarg;
   }
-  int scwidth = win->w_minscwidth <= 0 ? 0 : MIN(win->w_maxscwidth, win->w_scwidth);
-  win->w_scwidth = MAX(win->w_minscwidth, scwidth);
   // When changing the 'signcolumn' to or from 'number', recompute the
   // width of the number column if 'number' or 'relativenumber' is set.
   if ((*oldval == 'n' && *(oldval + 1) == 'u') || win->w_minscwidth == SCL_NUM) {
@@ -2048,8 +2070,8 @@ const char *did_set_signcolumn(optset_T *args)
 int expand_set_signcolumn(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_scl_values,
-                               ARRAY_SIZE(p_scl_values) - 1,
+                               opt_scl_values,
+                               ARRAY_SIZE(opt_scl_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2069,10 +2091,10 @@ const char *did_set_spellfile(optset_T *args)
 
   // When there is a window for this buffer in which 'spell'
   // is set load the wordlists.
-  if ((!valid_spellfile(*varp))) {
+  if (!valid_spellfile(*varp)) {
     return e_invarg;
   }
-  return did_set_spell_option(true);
+  return did_set_spell_option();
 }
 
 /// The 'spelllang' option is changed.
@@ -2085,15 +2107,22 @@ const char *did_set_spelllang(optset_T *args)
   if (!valid_spelllang(*varp)) {
     return e_invarg;
   }
-  return did_set_spell_option(false);
+  return did_set_spell_option();
 }
 
 /// The 'spelloptions' option is changed.
 const char *did_set_spelloptions(optset_T *args)
 {
   win_T *win = (win_T *)args->os_win;
-  if (opt_strings_flags(win->w_s->b_p_spo, p_spo_values, &(win->w_s->b_p_spo_flags),
-                        true) != OK) {
+  int opt_flags = args->os_flags;
+  const char *val = args->os_newval.string.data;
+
+  if (!(opt_flags & OPT_LOCAL)
+      && opt_strings_flags(val, opt_spo_values, &spo_flags, true) != OK) {
+    return e_invarg;
+  }
+  if (!(opt_flags & OPT_GLOBAL)
+      && opt_strings_flags(val, opt_spo_values, &win->w_s->b_p_spo_flags, true) != OK) {
     return e_invarg;
   }
   return NULL;
@@ -2102,8 +2131,8 @@ const char *did_set_spelloptions(optset_T *args)
 int expand_set_spelloptions(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_spo_values,
-                               ARRAY_SIZE(p_spo_values) - 1,
+                               opt_spo_values,
+                               ARRAY_SIZE(opt_spo_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2120,8 +2149,8 @@ const char *did_set_spellsuggest(optset_T *args FUNC_ATTR_UNUSED)
 int expand_set_spellsuggest(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_sps_values,
-                               ARRAY_SIZE(p_sps_values) - 1,
+                               opt_sps_values,
+                               ARRAY_SIZE(opt_sps_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2129,14 +2158,14 @@ int expand_set_spellsuggest(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'splitkeep' option is changed.
 const char *did_set_splitkeep(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_strings(p_spk, p_spk_values, false);
+  return did_set_opt_strings(p_spk, opt_spk_values, false);
 }
 
 int expand_set_splitkeep(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_spk_values,
-                               ARRAY_SIZE(p_spk_values) - 1,
+                               opt_spk_values,
+                               ARRAY_SIZE(opt_spk_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2179,7 +2208,11 @@ static const char *did_set_statustabline_rulerformat(optset_T *args, bool rulerf
     if (wid && *s == '(' && (errmsg = check_stl_option(p_ruf)) == NULL) {
       ru_wid = wid;
     } else {
-      errmsg = check_stl_option(p_ruf);
+      // Validate the flags in 'rulerformat' only if it doesn't point to
+      // a custom function ("%!" flag).
+      if ((*varp)[1] != '!') {
+        errmsg = check_stl_option(p_ruf);
+      }
     }
   } else if (rulerformat || s[0] != '%' || s[1] != '!') {
     // check 'statusline', 'winbar', 'tabline' or 'statuscolumn'
@@ -2195,14 +2228,29 @@ static const char *did_set_statustabline_rulerformat(optset_T *args, bool rulerf
 /// The 'switchbuf' option is changed.
 const char *did_set_switchbuf(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_flags(p_swb, p_swb_values, &swb_flags, true);
+  return did_set_opt_flags(p_swb, opt_swb_values, &swb_flags, true);
 }
 
 int expand_set_switchbuf(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_swb_values,
-                               ARRAY_SIZE(p_swb_values) - 1,
+                               opt_swb_values,
+                               ARRAY_SIZE(opt_swb_values) - 1,
+                               numMatches,
+                               matches);
+}
+
+/// The 'tabclose' option is changed.
+const char *did_set_tabclose(optset_T *args FUNC_ATTR_UNUSED)
+{
+  return did_set_opt_flags(p_tcl, opt_tcl_values, &tcl_flags, true);
+}
+
+int expand_set_tabclose(optexpand_T *args, int *numMatches, char ***matches)
+{
+  return expand_set_opt_string(args,
+                               opt_tcl_values,
+                               ARRAY_SIZE(opt_tcl_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2234,7 +2282,7 @@ const char *did_set_tagcase(optset_T *args)
     // make the local value empty: use the global value
     *flags = 0;
   } else if (*p == NUL
-             || opt_strings_flags(p, p_tc_values, flags, false) != OK) {
+             || opt_strings_flags(p, opt_tc_values, flags, false) != OK) {
     return e_invarg;
   }
   return NULL;
@@ -2243,8 +2291,8 @@ const char *did_set_tagcase(optset_T *args)
 int expand_set_tagcase(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_tc_values,
-                               ARRAY_SIZE(p_tc_values) - 1,
+                               opt_tc_values,
+                               ARRAY_SIZE(opt_tc_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2252,14 +2300,14 @@ int expand_set_tagcase(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'termpastefilter' option is changed.
 const char *did_set_termpastefilter(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_flags(p_tpf, p_tpf_values, &tpf_flags, true);
+  return did_set_opt_flags(p_tpf, opt_tpf_values, &tpf_flags, true);
 }
 
 int expand_set_termpastefilter(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_tpf_values,
-                               ARRAY_SIZE(p_tpf_values) - 1,
+                               opt_tpf_values,
+                               ARRAY_SIZE(opt_tpf_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2363,7 +2411,7 @@ const char *did_set_verbosefile(optset_T *args)
 /// The 'viewoptions' option is changed.
 const char *did_set_viewoptions(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_flags(p_vop, p_ssop_values, &vop_flags, true);
+  return did_set_opt_flags(p_vop, opt_ssop_values, &vop_flags, true);
 }
 
 /// The 'virtualedit' option is changed.
@@ -2383,7 +2431,7 @@ const char *did_set_virtualedit(optset_T *args)
     // make the local value empty: use the global value
     *flags = 0;
   } else {
-    if (opt_strings_flags(ve, p_ve_values, flags, true) != OK) {
+    if (opt_strings_flags(ve, opt_ve_values, flags, true) != OK) {
       return e_invarg;
     } else if (strcmp(ve, args->os_oldval.string.data) != 0) {
       // Recompute cursor position in case the new 've' setting
@@ -2398,8 +2446,8 @@ const char *did_set_virtualedit(optset_T *args)
 int expand_set_virtualedit(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_ve_values,
-                               ARRAY_SIZE(p_ve_values) - 1,
+                               opt_ve_values,
+                               ARRAY_SIZE(opt_ve_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2431,8 +2479,8 @@ const char *did_set_wildmode(optset_T *args FUNC_ATTR_UNUSED)
 int expand_set_wildmode(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_wim_values,
-                               ARRAY_SIZE(p_wim_values) - 1,
+                               opt_wim_values,
+                               ARRAY_SIZE(opt_wim_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2440,14 +2488,14 @@ int expand_set_wildmode(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'wildoptions' option is changed.
 const char *did_set_wildoptions(optset_T *args FUNC_ATTR_UNUSED)
 {
-  return did_set_opt_flags(p_wop, p_wop_values, &wop_flags, true);
+  return did_set_opt_flags(p_wop, opt_wop_values, &wop_flags, true);
 }
 
 int expand_set_wildoptions(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_wop_values,
-                               ARRAY_SIZE(p_wop_values) - 1,
+                               opt_wop_values,
+                               ARRAY_SIZE(opt_wop_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2455,7 +2503,7 @@ int expand_set_wildoptions(optexpand_T *args, int *numMatches, char ***matches)
 /// The 'winaltkeys' option is changed.
 const char *did_set_winaltkeys(optset_T *args FUNC_ATTR_UNUSED)
 {
-  if (*p_wak == NUL || check_opt_strings(p_wak, p_wak_values, false) != OK) {
+  if (*p_wak == NUL || check_opt_strings(p_wak, opt_wak_values, false) != OK) {
     return e_invarg;
   }
   return NULL;
@@ -2464,8 +2512,8 @@ const char *did_set_winaltkeys(optset_T *args FUNC_ATTR_UNUSED)
 int expand_set_winaltkeys(optexpand_T *args, int *numMatches, char ***matches)
 {
   return expand_set_opt_string(args,
-                               p_wak_values,
-                               ARRAY_SIZE(p_wak_values) - 1,
+                               opt_wak_values,
+                               ARRAY_SIZE(opt_wak_values) - 1,
                                numMatches,
                                matches);
 }
@@ -2480,7 +2528,8 @@ const char *did_set_winbar(optset_T *args)
 const char *did_set_winhighlight(optset_T *args)
 {
   win_T *win = (win_T *)args->os_win;
-  if (!parse_winhl_opt(win)) {
+  char **varp = (char **)args->os_varp;
+  if (!parse_winhl_opt(*varp, varp == &win->w_p_winhl ? win : NULL)) {
     return e_invarg;
   }
   return NULL;
@@ -2496,7 +2545,7 @@ int expand_set_winhighlight(optexpand_T *args, int *numMatches, char ***matches)
 /// @param list  when true: accept a list of values
 ///
 /// @return  OK for correct value, FAIL otherwise. Empty is always OK.
-static int check_opt_strings(char *val, char **values, int list)
+static int check_opt_strings(char *val, const char **values, int list)
 {
   return opt_strings_flags(val, values, NULL, list);
 }
@@ -2509,7 +2558,7 @@ static int check_opt_strings(char *val, char **values, int list)
 /// @param list  when true: accept a list of values
 ///
 /// @return  OK for correct value, FAIL otherwise. Empty is always OK.
-static int opt_strings_flags(const char *val, char **values, unsigned *flagp, bool list)
+static int opt_strings_flags(const char *val, const char **values, unsigned *flagp, bool list)
 {
   unsigned new_flags = 0;
 
@@ -2539,7 +2588,7 @@ static int opt_strings_flags(const char *val, char **values, unsigned *flagp, bo
 /// @return  OK if "p" is a valid fileformat name, FAIL otherwise.
 int check_ff_value(char *p)
 {
-  return check_opt_strings(p, p_ff_values, false);
+  return check_opt_strings(p, opt_ff_values, false);
 }
 
 static const char e_conflicts_with_value_of_listchars[]

@@ -27,7 +27,6 @@
 #include "nvim/fileio.h"
 #include "nvim/gettext_defs.h"
 #include "nvim/globals.h"
-#include "nvim/highlight.h"
 #include "nvim/highlight_defs.h"
 #include "nvim/iconv_defs.h"
 #include "nvim/input.h"
@@ -261,11 +260,8 @@ static int buf_write_convert(struct bw_info *ip, char **bufp, int *lenp)
           ip->bw_restlen += *lenp;
           break;
         }
-        if (n > 1) {
-          c = (unsigned)utf_ptr2char((char *)ip->bw_rest);
-        } else {
-          c = ip->bw_rest[0];
-        }
+        c = (n > 1) ? (unsigned)utf_ptr2char((char *)ip->bw_rest)
+                    : ip->bw_rest[0];
         if (n >= ip->bw_restlen) {
           n -= ip->bw_restlen;
           ip->bw_restlen = 0;
@@ -289,11 +285,8 @@ static int buf_write_convert(struct bw_info *ip, char **bufp, int *lenp)
                   (size_t)ip->bw_restlen);
           break;
         }
-        if (n > 1) {
-          c = (unsigned)utf_ptr2char(*bufp + wlen);
-        } else {
-          c = (uint8_t)(*bufp)[wlen];
-        }
+        c = n > 1 ? (unsigned)utf_ptr2char(*bufp + wlen)
+                  : (uint8_t)(*bufp)[wlen];
       }
 
       if (ucs2bytes(c, &p, flags) && !ip->bw_conv_error) {
@@ -356,8 +349,8 @@ static int check_mtime(buf_T *buf, FileInfo *file_info)
     msg_scroll = true;  // Don't overwrite messages here.
     msg_silent = 0;     // Must give this prompt.
     // Don't use emsg() here, don't want to flush the buffers.
-    msg(_("WARNING: The file has been changed since reading it!!!"), HL_ATTR(HLF_E));
-    if (ask_yesno(_("Do you really want to write to it"), true) == 'n') {
+    msg(_("WARNING: The file has been changed since reading it!!!"), HLF_E);
+    if (ask_yesno(_("Do you really want to write to it")) == 'n') {
       return FAIL;
     }
     msg_scroll = false;  // Always overwrite the file message now.
@@ -731,9 +724,9 @@ static int buf_write_make_backup(char *fname, bool append, FileInfo *file_info_o
   FileInfo file_info;
   const bool no_prepend_dot = false;
 
-  if ((bkc & BKC_YES) || append) {       // "yes"
+  if ((bkc & kOptBkcFlagYes) || append) {       // "yes"
     *backup_copyp = true;
-  } else if ((bkc & BKC_AUTO)) {          // "auto"
+  } else if ((bkc & kOptBkcFlagAuto)) {          // "auto"
     // Don't rename the file when:
     // - it's a hard link
     // - it's a symbolic link
@@ -779,19 +772,19 @@ static int buf_write_make_backup(char *fname, bool append, FileInfo *file_info_o
   }
 
   // Break symlinks and/or hardlinks if we've been asked to.
-  if ((bkc & BKC_BREAKSYMLINK) || (bkc & BKC_BREAKHARDLINK)) {
+  if ((bkc & kOptBkcFlagBreaksymlink) || (bkc & kOptBkcFlagBreakhardlink)) {
 #ifdef UNIX
     bool file_info_link_ok = os_fileinfo_link(fname, &file_info);
 
     // Symlinks.
-    if ((bkc & BKC_BREAKSYMLINK)
+    if ((bkc & kOptBkcFlagBreaksymlink)
         && file_info_link_ok
         && !os_fileinfo_id_equal(&file_info, file_info_old)) {
       *backup_copyp = false;
     }
 
     // Hardlinks.
-    if ((bkc & BKC_BREAKHARDLINK)
+    if ((bkc & kOptBkcFlagBreakhardlink)
         && os_fileinfo_hardlinks(file_info_old) > 1
         && (!file_info_link_ok
             || os_fileinfo_id_equal(&file_info, file_info_old))) {
@@ -821,10 +814,6 @@ static int buf_write_make_backup(char *fname, bool append, FileInfo *file_info_o
       // Isolate one directory name, using an entry in 'bdir'.
       size_t dir_len = copy_option_part(&dirp, IObuff, IOSIZE, ",");
       char *p = IObuff + dir_len;
-      bool trailing_pathseps = after_pathsep(IObuff, p) && p[-1] == p[-2];
-      if (trailing_pathseps) {
-        IObuff[dir_len - 2] = NUL;
-      }
       if (*dirp == NUL && !os_isdir(IObuff)) {
         int ret;
         char *failed_dir;
@@ -834,9 +823,9 @@ static int buf_write_make_backup(char *fname, bool append, FileInfo *file_info_o
           xfree(failed_dir);
         }
       }
-      if (trailing_pathseps) {
+      if (after_pathsep(IObuff, p) && p[-1] == p[-2]) {
         // Ends with '//', Use Full path
-        if ((p = make_percent_swname(IObuff, fname))
+        if ((p = make_percent_swname(IObuff, p, fname))
             != NULL) {
           *backupp = modname(p, backup_ext, no_prepend_dot);
           xfree(p);
@@ -880,9 +869,7 @@ static int buf_write_make_backup(char *fname, bool append, FileInfo *file_info_o
             // Change one character, just before the extension.
             //
             char *wp = *backupp + strlen(*backupp) - 1 - strlen(backup_ext);
-            if (wp < *backupp) {                // empty file name ???
-              wp = *backupp;
-            }
+            wp = MAX(wp, *backupp);  // empty file name ???
             *wp = 'z';
             while (*wp > 'a' && os_fileinfo(*backupp, &file_info_new)) {
               (*wp)--;
@@ -963,10 +950,6 @@ nobackup:
       // Isolate one directory name and make the backup file name.
       size_t dir_len = copy_option_part(&dirp, IObuff, IOSIZE, ",");
       char *p = IObuff + dir_len;
-      bool trailing_pathseps = after_pathsep(IObuff, p) && p[-1] == p[-2];
-      if (trailing_pathseps) {
-        IObuff[dir_len - 2] = NUL;
-      }
       if (*dirp == NUL && !os_isdir(IObuff)) {
         int ret;
         char *failed_dir;
@@ -976,9 +959,9 @@ nobackup:
           xfree(failed_dir);
         }
       }
-      if (trailing_pathseps) {
+      if (after_pathsep(IObuff, p) && p[-1] == p[-2]) {
         // path ends with '//', use full path
-        if ((p = make_percent_swname(IObuff, fname))
+        if ((p = make_percent_swname(IObuff, p, fname))
             != NULL) {
           *backupp = modname(p, backup_ext, no_prepend_dot);
           xfree(p);
@@ -1001,9 +984,7 @@ nobackup:
         // Change one character, just before the extension.
         if (!p_bk && os_path_exists(*backupp)) {
           p = *backupp + strlen(*backupp) - 1 - strlen(backup_ext);
-          if (p < *backupp) {           // empty file name ???
-            p = *backupp;
-          }
+          p = MAX(p, *backupp);  // empty file name ???
           *p = 'z';
           while (*p > 'a' && os_path_exists(*backupp)) {
             (*p)--;
@@ -1166,11 +1147,12 @@ int buf_write(buf_T *buf, char *fname, char *sfname, linenr_T start, linenr_T en
     msg_scroll = true;              // don't overwrite previous file message
   }
   if (!filtering) {
+    msg_ext_set_kind("bufwrite");
     // show that we are busy
 #ifndef UNIX
-    filemess(buf, sfname, "", 0);
+    filemess(buf, sfname, "");
 #else
-    filemess(buf, fname, "", 0);
+    filemess(buf, fname, "");
 #endif
   }
   msg_scroll = false;               // always overwrite the file message now
@@ -1263,9 +1245,7 @@ int buf_write(buf_T *buf, char *fname, char *sfname, linenr_T start, linenr_T en
     status_redraw_all();            // redraw status lines later
   }
 
-  if (end > buf->b_ml.ml_line_count) {
-    end = buf->b_ml.ml_line_count;
-  }
+  end = MIN(end, buf->b_ml.ml_line_count);
   if (buf->b_ml.ml_flags & ML_EMPTY) {
     start = end + 1;
   }
@@ -1783,6 +1763,7 @@ restore_backup:
     if (msg_add_fileformat(fileformat)) {
       insert_space = true;
     }
+    msg_ext_set_kind("bufwrite");
     msg_add_lines(insert_space, lnum, nchars);       // add line/char count
     if (!shortmess(SHM_WRITE)) {
       if (append) {
@@ -1901,11 +1882,9 @@ nofail:
 
     retval = FAIL;
     if (end == 0) {
-      const int attr = HL_ATTR(HLF_E);  // Set highlight for error messages.
-      msg_puts_attr(_("\nWARNING: Original file may be lost or damaged\n"),
-                    attr | MSG_HIST);
-      msg_puts_attr(_("don't quit the editor until the file is successfully written!"),
-                    attr | MSG_HIST);
+      const int hl_id = HLF_E;  // Set highlight for error messages.
+      msg_puts_hl(_("\nWARNING: Original file may be lost or damaged\n"), hl_id, true);
+      msg_puts_hl(_("don't quit the editor until the file is successfully written!"), hl_id, true);
 
       // Update the timestamp to avoid an "overwrite changed file"
       // prompt when writing again.

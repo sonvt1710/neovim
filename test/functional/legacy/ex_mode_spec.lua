@@ -47,8 +47,7 @@ describe('Ex mode', function()
   it('substitute confirmation prompt', function()
     command('set noincsearch nohlsearch inccommand=')
     local screen = Screen.new(60, 6)
-    screen:attach()
-    command([[call setline(1, ['foo foo', 'foo foo', 'foo foo'])]])
+    command([[call setline(1, repeat(['foo foo'], 4))]])
     command([[set number]])
     feed('gQ')
     screen:expect([[
@@ -110,19 +109,30 @@ describe('Ex mode', function()
       :^                                                           |
     ]])
 
+    -- The printed line should overwrite the colon
+    feed('<CR>')
+    screen:expect([[
+      {8:  2 }foo foo                                                 |
+          ^^^q                                                    |
+      {8:  2 }foo foo                                                 |
+      {8:  3 }foo foo                                                 |
+      {8:  4 }foo foo                                                 |
+      :^                                                           |
+    ]])
+
     feed(':vi<CR>')
     screen:expect([[
       {8:  1 }foo bar                                                 |
       {8:  2 }foo foo                                                 |
-      {8:  3 }^foo foo                                                 |
-      {1:~                                                           }|*2
+      {8:  3 }foo foo                                                 |
+      {8:  4 }^foo foo                                                 |
+      {1:~                                                           }|
                                                                   |
     ]])
   end)
 
   it('pressing Ctrl-C in :append inside a loop in Ex mode does not hang', function()
     local screen = Screen.new(60, 6)
-    screen:attach()
     feed('gQ')
     feed('for i in range(1)<CR>')
     feed('append<CR>')

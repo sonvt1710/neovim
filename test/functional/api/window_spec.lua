@@ -85,7 +85,7 @@ describe('API/win', function()
           [[
            local cmdwin_buf = vim.api.nvim_get_current_buf()
            local new_win, new_buf = ...
-           vim.api.nvim_buf_call(new_buf, function()
+           vim._with({buf = new_buf}, function()
              vim.api.nvim_win_set_buf(new_win, cmdwin_buf)
            end)
          ]],
@@ -100,7 +100,7 @@ describe('API/win', function()
           [[
            local cmdwin_win = vim.api.nvim_get_current_win()
            local new_win, new_buf = ...
-           vim.api.nvim_win_call(new_win, function()
+           vim._with({win = new_win}, function()
              vim.api.nvim_win_set_buf(cmdwin_win, new_buf)
            end)
          ]],
@@ -164,13 +164,12 @@ describe('API/win', function()
       eq('typing\n  some dumb text', curbuf_contents())
     end)
 
-    it('does not leak memory when using invalid window ID with invalid pos', function()
+    it('no memory leak when using invalid window ID with invalid pos', function()
       eq('Invalid window id: 1', pcall_err(api.nvim_win_set_cursor, 1, { 'b\na' }))
     end)
 
     it('updates the screen, and also when the window is unfocused', function()
       local screen = Screen.new(30, 9)
-      screen:attach()
 
       insert('prologue')
       feed('100o<esc>')
@@ -281,7 +280,6 @@ describe('API/win', function()
 
     it('updates cursorline and statusline ruler in non-current window', function()
       local screen = Screen.new(60, 8)
-      screen:attach()
       command('set ruler')
       command('set cursorline')
       insert([[
@@ -314,7 +312,6 @@ describe('API/win', function()
 
     it('updates cursorcolumn in non-current window', function()
       local screen = Screen.new(60, 8)
-      screen:attach()
       command('set cursorcolumn')
       insert([[
         aaa
@@ -360,6 +357,15 @@ describe('API/win', function()
       )
       api.nvim_win_set_height(api.nvim_list_wins()[2], 2)
       eq(2, api.nvim_win_get_height(api.nvim_list_wins()[2]))
+    end)
+
+    it('failure modes', function()
+      command('split')
+      eq('Invalid window id: 999999', pcall_err(api.nvim_win_set_height, 999999, 10))
+      eq(
+        'Wrong type for argument 2 when calling nvim_win_set_height, expecting Integer',
+        pcall_err(api.nvim_win_set_height, 0, 0.9)
+      )
     end)
 
     it('correctly handles height=1', function()
@@ -410,6 +416,15 @@ describe('API/win', function()
       )
       api.nvim_win_set_width(api.nvim_list_wins()[2], 2)
       eq(2, api.nvim_win_get_width(api.nvim_list_wins()[2]))
+    end)
+
+    it('failure modes', function()
+      command('vsplit')
+      eq('Invalid window id: 999999', pcall_err(api.nvim_win_set_width, 999999, 10))
+      eq(
+        'Wrong type for argument 2 when calling nvim_win_set_width, expecting Integer',
+        pcall_err(api.nvim_win_set_width, 0, 0.9)
+      )
     end)
 
     it('do not cause ml_get errors with foldmethod=expr #19989', function()
@@ -638,7 +653,7 @@ describe('API/win', function()
       feed('q:')
       exec_lua(
         [[
-        vim.api.nvim_win_call(..., function()
+        vim._with({win = ...}, function()
           vim.api.nvim_win_close(0, true)
         end)
       ]],
@@ -657,7 +672,7 @@ describe('API/win', function()
       exec_lua(
         [[
         local otherwin, cmdwin = ...
-        vim.api.nvim_win_call(otherwin, function()
+        vim._with({win = otherwin}, function()
           vim.api.nvim_win_close(cmdwin, true)
         end)
       ]],
@@ -771,7 +786,7 @@ describe('API/win', function()
       })
       exec_lua(
         [[
-        vim.api.nvim_win_call(..., function()
+        vim._with({win = ...}, function()
           vim.api.nvim_win_hide(0)
         end)
       ]],
@@ -790,7 +805,7 @@ describe('API/win', function()
       exec_lua(
         [[
         local otherwin, cmdwin = ...
-        vim.api.nvim_win_call(otherwin, function()
+        vim._with({win = otherwin}, function()
           vim.api.nvim_win_hide(cmdwin)
         end)
       ]],
@@ -857,7 +872,6 @@ describe('API/win', function()
     it('with two diff windows', function()
       local X = api.nvim_get_vvar('maxcol')
       local screen = Screen.new(45, 22)
-      screen:attach()
       exec([[
         set diffopt+=context:2 number
         let expr = 'printf("%08d", v:val) .. repeat("!", v:val)'
@@ -975,7 +989,6 @@ describe('API/win', function()
     it('with wrapped lines', function()
       local X = api.nvim_get_vvar('maxcol')
       local screen = Screen.new(45, 22)
-      screen:attach()
       exec([[
         set number cpoptions+=n
         call setline(1, repeat([repeat('foobar-', 36)], 3))
@@ -1178,7 +1191,7 @@ describe('API/win', function()
           exec_lua,
           [[
            local cmdwin_buf = vim.api.nvim_get_current_buf()
-           vim.api.nvim_buf_call(vim.api.nvim_create_buf(false, true), function()
+           vim._with({buf = vim.api.nvim_create_buf(false, true)}, function()
              vim.api.nvim_open_win(cmdwin_buf, false, {
                relative='editor', row=5, col=5, width=5, height=5,
              })
@@ -1669,7 +1682,7 @@ describe('API/win', function()
         autocmd BufWinEnter * ++once let fired = v:true
       ]])
       eq(
-        'Failed to set buffer 2',
+        'Vim:E37: No write since last change (add ! to override)',
         pcall_err(api.nvim_open_win, api.nvim_create_buf(true, true), false, { split = 'left' })
       )
       eq(false, eval('fired'))
@@ -1808,6 +1821,38 @@ describe('API/win', function()
         )
         eq(topdir .. '/Xacd', fn.getcwd())
       end)
+    end)
+
+    it('no memory leak with valid title and invalid footer', function()
+      eq(
+        'title/footer must be string or array',
+        pcall_err(api.nvim_open_win, 0, false, {
+          relative = 'editor',
+          row = 10,
+          col = 10,
+          height = 10,
+          width = 10,
+          border = 'single',
+          title = { { 'TITLE' } },
+          footer = 0,
+        })
+      )
+    end)
+
+    it('no memory leak with invalid title and valid footer', function()
+      eq(
+        'title/footer must be string or array',
+        pcall_err(api.nvim_open_win, 0, false, {
+          relative = 'editor',
+          row = 10,
+          col = 10,
+          height = 10,
+          width = 10,
+          border = 'single',
+          title = 0,
+          footer = { { 'FOOTER' } },
+        })
+      )
     end)
   end)
 
@@ -2525,7 +2570,6 @@ describe('API/win', function()
 
     it('updates statusline when moving bottom split', function()
       local screen = Screen.new(10, 10)
-      screen:attach()
       exec([[
         set laststatus=0
         belowright split
@@ -2765,43 +2809,11 @@ describe('API/win', function()
         border = 'single',
       })
       eq(
-        'title/footer cannot be an empty array',
-        pcall_err(api.nvim_win_set_config, win, { title = {} })
+        'title/footer must be string or array',
+        pcall_err(api.nvim_win_set_config, win, { title = 0 })
       )
       command('redraw!')
       assert_alive()
-    end)
-
-    it('no crash with invalid footer', function()
-      local win = api.nvim_open_win(0, true, {
-        width = 10,
-        height = 10,
-        relative = 'editor',
-        row = 10,
-        col = 10,
-        footer = { { 'test' } },
-        border = 'single',
-      })
-      eq(
-        'title/footer cannot be an empty array',
-        pcall_err(api.nvim_win_set_config, win, { footer = {} })
-      )
-      command('redraw!')
-      assert_alive()
-    end)
-  end)
-
-  describe('set_config', function()
-    it('no crash with invalid title', function()
-      local win = api.nvim_open_win(0, true, {
-        width = 10,
-        height = 10,
-        relative = 'editor',
-        row = 10,
-        col = 10,
-        title = { { 'test' } },
-        border = 'single',
-      })
       eq(
         'title/footer cannot be an empty array',
         pcall_err(api.nvim_win_set_config, win, { title = {} })
@@ -2821,11 +2833,60 @@ describe('API/win', function()
         border = 'single',
       })
       eq(
+        'title/footer must be string or array',
+        pcall_err(api.nvim_win_set_config, win, { footer = 0 })
+      )
+      command('redraw!')
+      assert_alive()
+      eq(
         'title/footer cannot be an empty array',
         pcall_err(api.nvim_win_set_config, win, { footer = {} })
       )
       command('redraw!')
       assert_alive()
+    end)
+
+    describe('no crash or memory leak', function()
+      local win
+
+      before_each(function()
+        win = api.nvim_open_win(0, false, {
+          relative = 'editor',
+          row = 10,
+          col = 10,
+          height = 10,
+          width = 10,
+          border = 'single',
+          title = { { 'OLD_TITLE' } },
+          footer = { { 'OLD_FOOTER' } },
+        })
+      end)
+
+      it('with valid title and invalid footer', function()
+        eq(
+          'title/footer must be string or array',
+          pcall_err(api.nvim_win_set_config, win, {
+            title = { { 'NEW_TITLE' } },
+            footer = 0,
+          })
+        )
+        command('redraw!')
+        assert_alive()
+        eq({ { 'OLD_TITLE' } }, api.nvim_win_get_config(win).title)
+      end)
+
+      it('with invalid title and valid footer', function()
+        eq(
+          'title/footer must be string or array',
+          pcall_err(api.nvim_win_set_config, win, {
+            title = 0,
+            footer = { { 'NEW_FOOTER' } },
+          })
+        )
+        command('redraw!')
+        assert_alive()
+        eq({ { 'OLD_FOOTER' } }, api.nvim_win_get_config(win).footer)
+      end)
     end)
   end)
 end)

@@ -15,7 +15,6 @@
 #include "nvim/cmdexpand.h"
 #include "nvim/cmdexpand_defs.h"
 #include "nvim/eval.h"
-#include "nvim/gettext_defs.h"
 #include "nvim/globals.h"
 #include "nvim/log.h"
 #include "nvim/macros_defs.h"
@@ -344,7 +343,7 @@ char *os_getenvname_at_index(size_t index)
 #endif
 }
 
-/// Get the process ID of the Neovim process.
+/// Get the process ID of the Nvim process.
 ///
 /// @return the process ID.
 int64_t os_get_pid(void)
@@ -395,23 +394,34 @@ void os_get_hostname(char *hostname, size_t size)
 #endif
 }
 
-/// To get the "real" home directory:
+/// The "real" home directory as determined by `init_homedir`.
+static char *homedir = NULL;
+static char *os_uv_homedir(void);
+
+/// Gets the "real", resolved user home directory as determined by `init_homedir`.
+const char *os_homedir(void)
+{
+  if (!homedir) {
+    emsg("os_homedir failed: homedir not initialized");
+    return NULL;
+  }
+  return homedir;
+}
+
+/// Sets `homedir` to the "real", resolved user home directory, as follows:
 ///   1. get value of $HOME
 ///   2. if $HOME is not set, try the following
 /// For Windows:
 ///   1. assemble homedir using HOMEDRIVE and HOMEPATH
-///   2. try os_homedir()
+///   2. try os_uv_homedir()
 ///   3. resolve a direct reference to another system variable
 ///   4. guess C drive
 /// For Unix:
-///   1. try os_homedir()
+///   1. try os_uv_homedir()
 ///   2. go to that directory
 ///     This also works with mounts and links.
 ///     Don't do this for Windows, it will change the "current dir" for a drive.
 ///   3. fall back to current working directory as a last resort
-static char *homedir = NULL;
-static char *os_homedir(void);
-
 void init_homedir(void)
 {
   // In case we are called a second time.
@@ -440,7 +450,7 @@ void init_homedir(void)
     }
   }
   if (var == NULL) {
-    var = os_homedir();
+    var = os_uv_homedir();
   }
 
   // Weird but true: $HOME may contain an indirect reference to another
@@ -471,7 +481,7 @@ void init_homedir(void)
 
 #ifdef UNIX
   if (var == NULL) {
-    var = os_homedir();
+    var = os_uv_homedir();
   }
 
   // Get the actual path.  This resolves links.
@@ -492,7 +502,7 @@ void init_homedir(void)
 
 static char homedir_buf[MAXPATHL];
 
-static char *os_homedir(void)
+static char *os_uv_homedir(void)
 {
   homedir_buf[0] = NUL;
   size_t homedir_size = MAXPATHL;
@@ -570,7 +580,7 @@ void expand_env(char *src, char *dst, int dstlen)
 /// @param esc        Escape spaces in expanded variables
 /// @param one        `srcp` is a single filename
 /// @param prefix     Start again after this (can be NULL)
-void expand_env_esc(char *restrict srcp, char *restrict dst, int dstlen, bool esc, bool one,
+void expand_env_esc(const char *restrict srcp, char *restrict dst, int dstlen, bool esc, bool one,
                     char *prefix)
   FUNC_ATTR_NONNULL_ARG(1, 2)
 {

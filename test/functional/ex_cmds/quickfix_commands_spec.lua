@@ -185,6 +185,9 @@ describe('quickfix', function()
   it('BufAdd does not cause E16 when reusing quickfix buffer #18135', function()
     local file = file_base .. '_reuse_qfbuf_BufAdd'
     write_file(file, ('\n'):rep(100) .. 'foo')
+    finally(function()
+      os.remove(file)
+    end)
     source([[
       set grepprg=internal
       autocmd BufAdd * call and(0, 0)
@@ -192,7 +195,23 @@ describe('quickfix', function()
     ]])
     command('grep foo ' .. file)
     command('grep foo ' .. file)
-    os.remove(file)
+  end)
+
+  it('jump message does not scroll with cmdheight=0 and shm+=O #29597', function()
+    local screen = Screen.new(40, 6)
+    command('set cmdheight=0')
+    local file = file_base .. '_reuse_qfbuf_BufAdd'
+    write_file(file, 'foobar')
+    finally(function()
+      os.remove(file)
+    end)
+    command('vimgrep /foo/gj ' .. file)
+    feed(':cc<CR>')
+    screen:expect([[
+      ^foobar                                  |
+      {1:~                                       }|*4
+      (1 of 1): foobar                        |
+    ]])
   end)
 end)
 
@@ -206,7 +225,6 @@ it(':vimgrep can specify Unicode pattern without delimiters', function()
     [0] = { bold = true, foreground = Screen.colors.Blue }, -- NonText
     [1] = { reverse = true }, -- IncSearch
   })
-  screen:attach()
   feed('i→<Esc>:vimgrep →')
   screen:expect([[
     {1:→}                                       |

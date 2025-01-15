@@ -1,7 +1,7 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 
-local tt = require('test.functional.terminal.testutil')
+local tt = require('test.functional.testterm')
 local clear, eq, api = n.clear, t.eq, n.api
 local feed = n.feed
 local feed_data = tt.feed_data
@@ -17,7 +17,7 @@ describe(':terminal altscreen', function()
 
   before_each(function()
     clear()
-    screen = tt.screen_setup()
+    screen = tt.setup_screen()
     feed_data({
       'line1',
       'line2',
@@ -35,13 +35,13 @@ describe(':terminal altscreen', function()
       line6                                             |
       line7                                             |
       line8                                             |
-      {1: }                                                 |
+      ^                                                  |
       {3:-- TERMINAL --}                                    |
     ]])
     enter_altscreen()
     screen:expect([[
                                                         |*5
-      {1: }                                                 |
+      ^                                                  |
       {3:-- TERMINAL --}                                    |
     ]])
     eq(10, api.nvim_buf_line_count(0))
@@ -68,7 +68,7 @@ describe(':terminal altscreen', function()
         line6                                             |
         line7                                             |
         line8                                             |
-        {1: }                                                 |
+        ^                                                  |
         {3:-- TERMINAL --}                                    |
       ]])
       feed('<c-\\><c-n>gg')
@@ -103,7 +103,7 @@ describe(':terminal altscreen', function()
         line14                                            |
         line15                                            |
         line16                                            |
-        {1: }                                                 |
+        ^                                                  |
         {3:-- TERMINAL --}                                    |
       ]])
     end)
@@ -132,7 +132,7 @@ describe(':terminal altscreen', function()
       screen:expect([[
                                                           |*2
         rows: 4, cols: 50                                 |
-        {1: }                                                 |
+        ^                                                  |
         {3:-- TERMINAL --}                                    |
       ]])
     end
@@ -160,7 +160,7 @@ describe(':terminal altscreen', function()
           line5                                             |
           line6                                             |
           line7                                             |
-          line8                                             |
+          ^line8                                             |
           {3:-- TERMINAL --}                                    |
         ]])
       end)

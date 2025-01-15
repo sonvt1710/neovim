@@ -8,16 +8,13 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
+#include <string.h>
 #include <uv.h>
 
 #include "auto/config.h"
-#include "nvim/gettext_defs.h"
-#include "nvim/globals.h"
 #include "nvim/log.h"
 #include "nvim/macros_defs.h"
 #include "nvim/memory.h"
-#include "nvim/message.h"
 #include "nvim/os/fileio.h"
 #include "nvim/os/fs.h"
 #include "nvim/os/os_defs.h"
@@ -28,7 +25,7 @@
 #endif
 
 #ifdef INCLUDE_GENERATED_DECLARATIONS
-# include "os/fileio.c.generated.h"
+# include "os/fileio.c.generated.h"  // IWYU pragma: keep
 #endif
 
 /// Open file
@@ -309,6 +306,22 @@ ptrdiff_t file_read(FileDescriptor *const fp, char *const ret_buf, const size_t 
   return (ptrdiff_t)(size - read_remaining);
 }
 
+/// try to read already buffered data in place
+///
+/// @return NULL if enough data is not available
+///         valid pointer to chunk of "size". pointer becomes invalid in the next "file_read" call!
+char *file_try_read_buffered(FileDescriptor *const fp, const size_t size)
+  FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+{
+  if ((size_t)(fp->write_pos - fp->read_pos) >= size) {
+    char *ret = fp->read_pos;
+    fp->read_pos += size;
+    fp->bytes_read += size;
+    return ret;
+  }
+  return NULL;
+}
+
 /// Write to a file
 ///
 /// @param[in]  fd  File descriptor to write to.
@@ -320,9 +333,8 @@ ptrdiff_t file_write(FileDescriptor *const fp, const char *const buf, const size
   FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ARG(1)
 {
   assert(fp->wr);
-  ptrdiff_t space = (fp->buffer + ARENA_BLOCK_SIZE) - fp->write_pos;
   // includes the trivial case of size==0
-  if (size < (size_t)space) {
+  if (size < file_space(fp)) {
     memcpy(fp->write_pos, buf, size);
     fp->write_pos += size;
     return (ptrdiff_t)size;

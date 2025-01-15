@@ -4,12 +4,13 @@ local Screen = require('test.functional.ui.screen')
 
 local assert_alive = n.assert_alive
 local clear, feed = n.clear, n.feed
-local eval, eq, neq = n.eval, t.eq, t.neq
+local eval, eq, neq, ok = n.eval, t.eq, t.neq, t.ok
 local feed_command, source, expect = n.feed_command, n.source, n.expect
 local fn = n.fn
 local command = n.command
 local api = n.api
 local poke_eventloop = n.poke_eventloop
+local exec_lua = n.exec_lua
 
 describe('completion', function()
   local screen
@@ -17,7 +18,6 @@ describe('completion', function()
   before_each(function()
     clear()
     screen = Screen.new(60, 8)
-    screen:attach()
     screen:add_extra_attr_ids {
       [100] = { foreground = Screen.colors.Gray0, background = Screen.colors.Yellow },
       [101] = { background = Screen.colors.Gray0 },
@@ -327,7 +327,7 @@ describe('completion', function()
     end
   end)
 
-  describe('refresh:always', function()
+  describe('with refresh:always and noselect', function()
     before_each(function()
       source([[
         function! TestCompletion(findstart, base) abort
@@ -458,6 +458,67 @@ describe('completion', function()
 
         June
         June]])
+    end)
+
+    it('Enter does not select original text', function()
+      feed('iJ<C-x><C-u>')
+      poke_eventloop()
+      feed('u')
+      poke_eventloop()
+      feed('<CR>')
+      expect([[
+        Ju
+        ]])
+      feed('J<C-x><C-u>')
+      poke_eventloop()
+      feed('<CR>')
+      expect([[
+        Ju
+        J
+        ]])
+    end)
+  end)
+
+  describe('with noselect but not refresh:always', function()
+    before_each(function()
+      source([[
+        function! TestCompletion(findstart, base) abort
+          if a:findstart
+            let line = getline('.')
+            let start = col('.') - 1
+            while start > 0 && line[start - 1] =~ '\a'
+              let start -= 1
+            endwhile
+            return start
+          else
+            let ret = []
+            for m in split("January February March April May June July August September October November December")
+              if m =~ a:base  " match by regex
+                call add(ret, m)
+              endif
+            endfor
+            return {'words':ret}
+          endif
+        endfunction
+
+        set completeopt=menuone,noselect
+        set completefunc=TestCompletion
+      ]])
+    end)
+
+    it('Enter selects original text after adding leader', function()
+      feed('iJ<C-x><C-u>')
+      poke_eventloop()
+      feed('u')
+      poke_eventloop()
+      feed('<CR>')
+      expect('Ju')
+      feed('<Esc>')
+      poke_eventloop()
+      -- The behavior should be the same when completion has been interrupted,
+      -- which can happen interactively if the completion function is slow.
+      feed('SJ<C-x><C-u>u<CR>')
+      expect('Ju')
     end)
   end)
 
@@ -812,11 +873,65 @@ describe('completion', function()
       }
     end)
 
+    it('prefix is not included in completion for cmdline mode', function()
+      feed(':lua math.a<Tab>')
+      screen:expect([[
+                                                                    |
+        {1:~                                                           }|*5
+        {100:abs}{3:  acos  asin  atan  atan2                                }|
+        :lua math.abs^                                               |
+      ]])
+      feed('<Tab>')
+      screen:expect([[
+                                                                    |
+        {1:~                                                           }|*5
+        {3:abs  }{100:acos}{3:  asin  atan  atan2                                }|
+        :lua math.acos^                                              |
+      ]])
+    end)
+
+    it('prefix is not included in completion for i_CTRL-X_CTRL-V #19623', function()
+      feed('ilua math.a<C-X><C-V>')
+      screen:expect([[
+        lua math.abs^                                                |
+        {1:~       }{12: abs            }{1:                                    }|
+        {1:~       }{4: acos           }{1:                                    }|
+        {1:~       }{4: asin           }{1:                                    }|
+        {1:~       }{4: atan           }{1:                                    }|
+        {1:~       }{4: atan2          }{1:                                    }|
+        {1:~                                                           }|
+        {5:-- Command-line completion (^V^N^P) }{6:match 1 of 5}            |
+      ]])
+      feed('<C-V>')
+      screen:expect([[
+        lua math.acos^                                               |
+        {1:~       }{4: abs            }{1:                                    }|
+        {1:~       }{12: acos           }{1:                                    }|
+        {1:~       }{4: asin           }{1:                                    }|
+        {1:~       }{4: atan           }{1:                                    }|
+        {1:~       }{4: atan2          }{1:                                    }|
+        {1:~                                                           }|
+        {5:-- Command-line completion (^V^N^P) }{6:match 2 of 5}            |
+      ]])
+    end)
+
+    it('works when cursor is in the middle of cmdline #29586', function()
+      feed(':lua math.a(); 1<Left><Left><Left><Left><Left><Tab>')
+      screen:expect([[
+                                                                    |
+        {1:~                                                           }|*5
+        {100:abs}{3:  acos  asin  atan  atan2                                }|
+        :lua math.abs^(); 1                                          |
+      ]])
+    end)
+
     it('provides completion from `getcompletion()`', function()
       eq({ 'vim' }, fn.getcompletion('vi', 'lua'))
       eq({ 'api' }, fn.getcompletion('vim.ap', 'lua'))
       eq({ 'tbl_filter' }, fn.getcompletion('vim.tbl_fil', 'lua'))
       eq({ 'vim' }, fn.getcompletion('print(vi', 'lua'))
+      eq({ 'abs', 'acos', 'asin', 'atan', 'atan2' }, fn.getcompletion('math.a', 'lua'))
+      eq({ 'abs', 'acos', 'asin', 'atan', 'atan2' }, fn.getcompletion('lua math.a', 'cmdline'))
       -- fuzzy completion is not supported, so the result should be the same
       command('set wildoptions+=fuzzy')
       eq({ 'vim' }, fn.getcompletion('vi', 'lua'))
@@ -830,6 +945,12 @@ describe('completion', function()
     eq('BS', fn.getcompletion('set termpastefilter=', 'cmdline')[2])
     eq('SpecialKey', fn.getcompletion('set winhighlight=', 'cmdline')[1])
     eq('SpecialKey', fn.getcompletion('set winhighlight=NonText:', 'cmdline')[1])
+  end)
+
+  it('cmdline completion for -complete does not contain spaces', function()
+    for _, str in ipairs(fn.getcompletion('command -complete=', 'cmdline')) do
+      ok(not str:find(' '), 'string without spaces', str)
+    end
   end)
 
   describe('from the commandline window', function()
@@ -903,18 +1024,18 @@ describe('completion', function()
 
   it("'ignorecase' 'infercase' CTRL-X CTRL-N #6451", function()
     feed_command('set ignorecase infercase')
-    feed_command('edit runtime/doc/backers.txt')
+    feed_command('edit runtime/doc/credits.txt')
     feed('oX<C-X><C-N>')
     screen:expect {
       grid = [[
-      *backers.txt*          Nvim                                 |
-      Xnull^                                                       |
-      {12:Xnull          }{101: }                                            |
-      {4:Xoxomoon       }{101: }                                            |
-      {4:Xu             }{101: }     NVIM REFERENCE MANUAL                  |
-      {4:Xpayn          }{12: }                                            |
-      {4:Xinity         }{12: }                                            |
-      {5:-- Keyword Local completion (^N^P) }{6:match 1 of 7}             |
+      *credits.txt*          Nvim                                 |
+      Xvi^                                                         |
+      {12:Xvi            }{101: }                                            |
+      {4:Xvim           }{101: }                                            |
+      {4:X11            }{12: }     NVIM REFERENCE MANUAL                  |
+      {4:Xnull          }{12: }                                            |
+      {4:Xoxomoon       }{12: }                                            |
+      {5:-- Keyword Local completion (^N^P) }{6:match 1 of 10}            |
     ]],
     }
   end)
@@ -1145,7 +1266,7 @@ describe('completion', function()
     command([[
       call setline(1, ['aaaa'])
       let ns_id = nvim_create_namespace('extmark')
-      let mark_id = nvim_buf_set_extmark(0, ns_id, 0, 0, { 'end_col':2, 'hl_group':'Error'})
+      let mark_id = nvim_buf_set_extmark(0, ns_id, 0, 0, { 'end_col':2, 'hl_group':'Error' })
       let mark = nvim_buf_get_extmark_by_id(0, ns_id, mark_id, { 'details':1 })
       inoremap <C-x> <C-r>=Complete()<CR>
       function Complete() abort
@@ -1182,5 +1303,53 @@ describe('completion', function()
       aaaaa                                                       |
       {5:-- INSERT --}                                                |
     ]])
+    -- Also when completion leader is changed #31384
+    feed('<Esc>hi<C-N><C-P>a')
+    screen:expect({
+      grid = [[
+        {9:aa}a^aa                                                       |
+        {4:aaaa           }                                             |
+        {4:aaaaa          }                                             |
+        {5:-- Keyword completion (^N^P) }{19:Back at original}               |
+      ]],
+    })
+    -- But still grows with end_right_gravity #31437
+    command(
+      "call nvim_buf_set_extmark(0, ns_id, 1, 0, { 'end_col':2, 'hl_group':'Error', 'end_right_gravity': 1 })"
+    )
+    feed('<Esc>ji<C-N>a')
+    screen:expect({
+      grid = [[
+        {9:aa}aaa                                                       |
+        {9:aaa}^aa                                                       |
+        aaaaa                                                       |
+        {5:-- INSERT --}                                                |
+      ]],
+    })
+  end)
+
+  describe('nvim__complete_set', function()
+    it("fails when 'completeopt' does not include popup", function()
+      exec_lua([[
+        function _G.omni_test(findstart, base)
+          if findstart == 1 then
+            return vim.fn.col('.') - 1
+          end
+          return { { word = 'one' } }
+        end
+        vim.api.nvim_create_autocmd('CompleteChanged', {
+          callback = function()
+            local ok, err = pcall(vim.api.nvim__complete_set, 0, { info = '1info' })
+            if not ok then
+              vim.g.err_msg = err
+            end
+          end,
+        })
+        vim.opt.completeopt = 'menu,menuone'
+        vim.opt.omnifunc = 'v:lua.omni_test'
+      ]])
+      feed('S<C-X><C-O>')
+      eq('completeopt option does not include popup', api.nvim_get_var('err_msg'))
+    end)
   end)
 end)

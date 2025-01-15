@@ -27,6 +27,7 @@
 #include "nvim/mbyte.h"
 #include "nvim/memline.h"
 #include "nvim/memory.h"
+#include "nvim/memory_defs.h"
 #include "nvim/move.h"
 #include "nvim/pos_defs.h"
 #include "nvim/sign.h"
@@ -74,10 +75,10 @@ Integer nvim_create_namespace(String name)
 /// Gets existing, non-anonymous |namespace|s.
 ///
 /// @return dict that maps from names to namespace ids.
-Dictionary nvim_get_namespaces(Arena *arena)
+Dict nvim_get_namespaces(Arena *arena)
   FUNC_API_SINCE(5)
 {
-  Dictionary retval = arena_dict(arena, map_size(&namespace_ids));
+  Dict retval = arena_dict(arena, map_size(&namespace_ids));
   String name;
   handle_T id;
 
@@ -158,7 +159,7 @@ static Array extmark_to_array(MTPair extmark, bool id, bool add_dict, bool hl_na
   if (add_dict) {
     // TODO(bfredl): coding the size like this is a bit fragile.
     // We want ArrayOf(Dict(set_extmark)) as the return type..
-    Dictionary dict = arena_dict(arena, ARRAY_SIZE(set_extmark_table));
+    Dict dict = arena_dict(arena, ARRAY_SIZE(set_extmark_table));
 
     PUT_C(dict, "ns_id", INTEGER_OBJ((Integer)start.ns));
 
@@ -183,7 +184,7 @@ static Array extmark_to_array(MTPair extmark, bool id, bool add_dict, bool hl_na
 
     decor_to_dict_legacy(&dict, mt_decor(start), hl_name, arena);
 
-    ADD_C(rv, DICTIONARY_OBJ(dict));
+    ADD_C(rv, DICT_OBJ(dict));
   }
 
   return rv;
@@ -381,8 +382,9 @@ Array nvim_buf_get_extmarks(Buffer buffer, Integer ns_id, Object start, Object e
 ///               - id : id of the extmark to edit.
 ///               - end_row : ending line of the mark, 0-based inclusive.
 ///               - end_col : ending col of the mark, 0-based exclusive.
-///               - hl_group : name of the highlight group used to highlight
-///                   this mark.
+///               - hl_group : highlight group used for the text range. This and below
+///                   highlight groups can be supplied either as a string or as an integer,
+///                   the latter of which can be obtained using |nvim_get_hl_id_by_name()|.
 ///               - hl_eol : when true, for a multiline highlight covering the
 ///                          EOL of a line, continue the highlight for the rest
 ///                          of the screen line (just like for diff and
@@ -392,9 +394,7 @@ Array nvim_buf_get_extmarks(Buffer buffer, Integer ns_id, Object start, Object e
 ///                   text chunk with specified highlight. `highlight` element
 ///                   can either be a single highlight group, or an array of
 ///                   multiple highlight groups that will be stacked
-///                   (highest priority last). A highlight group can be supplied
-///                   either as a string or as an integer, the latter which
-///                   can be obtained using |nvim_get_hl_id_by_name()|.
+///                   (highest priority last).
 ///               - virt_text_pos : position of virtual text. Possible values:
 ///                 - "eol": right after eol character (default).
 ///                 - "overlay": display over the specified column, without
@@ -465,15 +465,12 @@ Array nvim_buf_get_extmarks(Buffer buffer, Integer ns_id, Object start, Object e
 ///                   buffer or end of the line respectively. Defaults to true.
 ///               - sign_text: string of length 1-2 used to display in the
 ///                   sign column.
-///               - sign_hl_group: name of the highlight group used to
-///                   highlight the sign column text.
-///               - number_hl_group: name of the highlight group used to
-///                   highlight the number column.
-///               - line_hl_group: name of the highlight group used to
-///                   highlight the whole line.
-///               - cursorline_hl_group: name of the highlight group used to
-///                   highlight the sign column text when the cursor is on
-///                   the same line as the mark and 'cursorline' is enabled.
+///               - sign_hl_group: highlight group used for the sign column text.
+///               - number_hl_group: highlight group used for the number column.
+///               - line_hl_group: highlight group used for the whole line.
+///               - cursorline_hl_group: highlight group used for the sign
+///                   column text when the cursor is on the same line as the
+///                   mark and 'cursorline' is enabled.
 ///               - conceal: string which should be either empty or a single
 ///                   character. Enable concealing similar to |:syn-conceal|.
 ///                   When a character is supplied it is used as |:syn-cchar|.
@@ -571,7 +568,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
     String c = opts->conceal;
     if (c.size > 0) {
       int ch;
-      hl.conceal_char = utfc_ptr2schar_len(c.data, (int)c.size, &ch);
+      hl.conceal_char = utfc_ptr2schar(c.data, &ch);
       if (!hl.conceal_char || !vim_isprintc(ch)) {
         api_set_error(err, kErrorTypeValidation, "conceal char has to be printable");
         goto error;
@@ -687,6 +684,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
 
   if (HAS_KEY(opts, set_extmark, url)) {
     url = string_to_cstr(opts->url);
+    has_hl = true;
   }
 
   if (opts->ui_watched) {
@@ -758,13 +756,9 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
     if (kv_size(virt_lines.data.virt_lines)) {
       decor_range_add_virt(&decor_state, r, c, line2, col2, decor_put_vt(virt_lines, NULL), true);
     }
-    if (url != NULL) {
-      DecorSignHighlight sh = DECOR_SIGN_HIGHLIGHT_INIT;
-      sh.url = url;
-      decor_range_add_sh(&decor_state, r, c, line2, col2, &sh, true, 0, 0);
-    }
     if (has_hl) {
       DecorSignHighlight sh = decor_sh_from_inline(hl);
+      sh.url = url;
       decor_range_add_sh(&decor_state, r, c, line2, col2, &sh, true, (uint32_t)ns_id, id);
     }
   } else {
@@ -788,12 +782,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
     }
 
     uint32_t decor_indexed = DECOR_ID_INVALID;
-    if (url != NULL) {
-      DecorSignHighlight sh = DECOR_SIGN_HIGHLIGHT_INIT;
-      sh.url = url;
-      sh.next = decor_indexed;
-      decor_indexed = decor_put_sh(sh);
-    }
+
     if (sign.flags & kSHIsSign) {
       sign.next = decor_indexed;
       decor_indexed = decor_put_sh(sign);
@@ -806,9 +795,11 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
     }
 
     DecorInline decor = DECOR_INLINE_INIT;
-    if (decor_alloc || decor_indexed != DECOR_ID_INVALID || schar_high(hl.conceal_char)) {
+    if (decor_alloc || decor_indexed != DECOR_ID_INVALID || url != NULL
+        || schar_high(hl.conceal_char)) {
       if (has_hl) {
         DecorSignHighlight sh = decor_sh_from_inline(hl);
+        sh.url = url;
         sh.next = decor_indexed;
         decor_indexed = decor_put_sh(sh);
       }
@@ -1002,7 +993,7 @@ void nvim_buf_clear_namespace(Buffer buffer, Integer ns_id, Integer line_start, 
 /// Note: this function should not be called often. Rather, the callbacks
 /// themselves can be used to throttle unneeded callbacks. the `on_start`
 /// callback can return `false` to disable the provider until the next redraw.
-/// Similarly, return `false` in `on_win` will skip the `on_lines` calls
+/// Similarly, return `false` in `on_win` will skip the `on_line` calls
 /// for that window (but any extmarks set in `on_win` will still be used).
 /// A plugin managing multiple sources of decoration should ideally only set
 /// one provider, and merge the sources internally. You can use multiple `ns_id`
@@ -1011,10 +1002,10 @@ void nvim_buf_clear_namespace(Buffer buffer, Integer ns_id, Integer line_start, 
 /// Note: doing anything other than setting extmarks is considered experimental.
 /// Doing things like changing options are not explicitly forbidden, but is
 /// likely to have unexpected consequences (such as 100% CPU consumption).
-/// doing `vim.rpcnotify` should be OK, but `vim.rpcrequest` is quite dubious
+/// Doing `vim.rpcnotify` should be OK, but `vim.rpcrequest` is quite dubious
 /// for the moment.
 ///
-/// Note: It is not allowed to remove or update extmarks in 'on_line' callbacks.
+/// Note: It is not allowed to remove or update extmarks in `on_line` callbacks.
 ///
 /// @param ns_id  Namespace id from |nvim_create_namespace()|
 /// @param opts  Table of callbacks:
@@ -1022,8 +1013,8 @@ void nvim_buf_clear_namespace(Buffer buffer, Integer ns_id, Integer line_start, 
 ///               ```
 ///                 ["start", tick]
 ///               ```
-///             - on_buf: called for each buffer being redrawn (before
-///               window callbacks)
+///             - on_buf: called for each buffer being redrawn (once per edit,
+///               before window callbacks)
 ///               ```
 ///                 ["buf", bufnr, tick]
 ///               ```

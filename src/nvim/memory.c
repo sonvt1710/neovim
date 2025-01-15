@@ -34,7 +34,6 @@
 #include "nvim/memory.h"
 #include "nvim/message.h"
 #include "nvim/option_vars.h"
-#include "nvim/os/input.h"
 #include "nvim/sign.h"
 #include "nvim/state_defs.h"
 #include "nvim/statusline.h"
@@ -199,7 +198,7 @@ void *xmallocz(size_t size)
 {
   size_t total_size = size + 1;
   if (total_size < size) {
-    preserve_exit(_("Vim: Data too large to fit into virtual memory space\n"));
+    preserve_exit(_("Nvim: Data too large to fit into virtual memory space\n"));
   }
 
   void *ret = xmalloc(total_size);

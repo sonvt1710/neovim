@@ -7,7 +7,7 @@ local M = {}
 --- Note: {patterns} is assumed to be sorted by occurrence in the file.
 --- @param patterns {start:string,stop:string,match:string}[]
 function M.highlight_groups(patterns)
-  local ns = vim.api.nvim_create_namespace('vimhelp')
+  local ns = vim.api.nvim_create_namespace('nvim.vimhelp')
   vim.api.nvim_buf_clear_namespace(0, ns, 0, -1)
 
   local save_cursor = vim.fn.getcurpos()
@@ -33,7 +33,7 @@ end
 --- Show a table of contents for the help buffer in a loclist
 function M.show_toc()
   local bufnr = vim.api.nvim_get_current_buf()
-  local parser = vim.treesitter.get_parser(bufnr, 'vimdoc')
+  local parser = assert(vim.treesitter.get_parser(bufnr, 'vimdoc', { error = false }))
   local query = vim.treesitter.query.parse(
     parser:lang(),
     [[

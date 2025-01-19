@@ -7,10 +7,10 @@
                                        Type |gO| to see the table of contents.
 
 ==============================================================================
-Checkhealth                                                           *health*
+Checkhealth                                              *vim.health* *health*
 
 
-health.vim is a minimal framework to help users troubleshoot configuration and
+vim.health is a minimal framework to help users troubleshoot configuration and
 any other environment conditions that a plugin might care about. Nvim ships
 with healthchecks for configuration, performance, python support, ruby
 support, clipboard support, and more.
@@ -21,7 +21,7 @@ To run all healthchecks, use: >vim
 <
 Plugin authors are encouraged to write new healthchecks. |health-dev|
 
-Commands                                                     *health-commands*
+COMMANDS                                                     *health-commands*
 
                                                            *:che* *:checkhealth*
 :che[ckhealth]  Run all healthchecks.
@@ -49,7 +49,24 @@ Commands                                                     *health-commands*
                         :checkhealth vim*
 <
 
-Create a healthcheck                                   *health-dev* *vim.health*
+USAGE                                                           *health-usage*
+
+Local mappings in the healthcheck buffer:
+
+q               Closes the window.
+
+Global configuration:
+
+                                                                    *g:health*
+g:health  Dictionary with the following optional keys:
+          - `style` (`'float'|nil`) Set to "float" to display :checkhealth in
+          a floating window instead of the default behavior.
+
+          Example: >lua
+            vim.g.health = { style = 'float' }
+
+--------------------------------------------------------------------------------
+Create a healthcheck                                              *health-dev*
 
 Healthchecks are functions that check the user environment, configuration, or
 any other prerequisites that a plugin cares about. Nvim ships with

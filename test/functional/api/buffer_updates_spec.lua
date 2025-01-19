@@ -27,12 +27,10 @@ end
 
 local function sendkeys(keys)
   api.nvim_input(keys)
-  -- give nvim some time to process msgpack requests before possibly sending
+  -- Wait for Nvim to fully process pending input before possibly sending
   -- more key presses - otherwise they all pile up in the queue and get
   -- processed at once
-  local ntime = os.clock() + 0.1
-  repeat
-  until os.clock() > ntime
+  n.poke_eventloop()
 end
 
 local function open(activate, lines)
@@ -881,7 +879,8 @@ describe('API: buffer events:', function()
   it('when :terminal lines change', function()
     local buffer_lines = {}
     local expected_lines = {}
-    fn.termopen({ nvim_prog, '-u', 'NONE', '-i', 'NONE', '-n', '-c', 'set shortmess+=A' }, {
+    fn.jobstart({ nvim_prog, '-u', 'NONE', '-i', 'NONE', '-n', '-c', 'set shortmess+=A' }, {
+      term = true,
       env = { VIMRUNTIME = os.getenv('VIMRUNTIME') },
     })
 

@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <lauxlib.h>
 #include <stddef.h>
@@ -19,10 +20,9 @@
 #include "nvim/eval/typval.h"
 #include "nvim/event/loop.h"
 #include "nvim/event/multiqueue.h"
-#include "nvim/event/process.h"
+#include "nvim/event/proc.h"
 #include "nvim/event/rstream.h"
 #include "nvim/event/socket.h"
-#include "nvim/event/stream.h"
 #include "nvim/event/wstream.h"
 #include "nvim/garray.h"
 #include "nvim/gettext_defs.h"
@@ -32,6 +32,7 @@
 #include "nvim/main.h"
 #include "nvim/mbyte.h"
 #include "nvim/memory.h"
+#include "nvim/memory_defs.h"
 #include "nvim/message.h"
 #include "nvim/msgpack_rpc/channel.h"
 #include "nvim/msgpack_rpc/server.h"
@@ -88,7 +89,7 @@ void channel_free_all_mem(void)
 bool channel_close(uint64_t id, ChannelPart part, const char **error)
 {
   Channel *chan;
-  Process *proc;
+  Proc *proc;
 
   const char *dummy;
   if (!error) {
@@ -139,8 +140,8 @@ bool channel_close(uint64_t id, ChannelPart part, const char **error)
     if (part == kChannelPartStderr || part == kChannelPartAll) {
       rstream_may_close(&proc->err);
     }
-    if (proc->type == kProcessTypePty && part == kChannelPartAll) {
-      pty_process_close_master(&chan->stream.pty);
+    if (proc->type == kProcTypePty && part == kChannelPartAll) {
+      pty_proc_close_master(&chan->stream.pty);
     }
 
     break;
@@ -239,11 +240,11 @@ void channel_create_event(Channel *chan, const char *ext_source)
 
   assert(chan->id <= VARNUMBER_MAX);
   Arena arena = ARENA_EMPTY;
-  Dictionary info = channel_info(chan->id, &arena);
+  Dict info = channel_info(chan->id, &arena);
   typval_T tv = TV_INITIAL_VALUE;
   // TODO(bfredl): do the conversion in one step. Also would be nice
   // to pretty print top level dict in defined order
-  object_to_vim(DICTIONARY_OBJ(info), &tv, NULL);
+  object_to_vim(DICT_OBJ(info), &tv, NULL);
   assert(tv.v_type == VAR_DICT);
   char *str = encode_tv2json(&tv, NULL);
   ILOG("new channel %" PRIu64 " (%s) : %s", chan->id, source, str);
@@ -289,7 +290,7 @@ static void channel_destroy(Channel *chan)
   }
 
   if (chan->streamtype == kChannelStreamProc) {
-    process_free(&chan->stream.proc);
+    proc_free(&chan->stream.proc);
   }
 
   callback_reader_free(&chan->on_data);
@@ -376,7 +377,7 @@ Channel *channel_job_start(char **argv, const char *exepath, CallbackReader on_s
       *status_out = 0;
       return NULL;
     }
-    chan->stream.pty = pty_process_init(&main_loop, chan);
+    chan->stream.pty = pty_proc_init(&main_loop, chan);
     if (pty_width > 0) {
       chan->stream.pty.width = pty_width;
     }
@@ -384,22 +385,22 @@ Channel *channel_job_start(char **argv, const char *exepath, CallbackReader on_s
       chan->stream.pty.height = pty_height;
     }
   } else {
-    chan->stream.uv = libuv_process_init(&main_loop, chan);
+    chan->stream.uv = libuv_proc_init(&main_loop, chan);
   }
 
-  Process *proc = &chan->stream.proc;
+  Proc *proc = &chan->stream.proc;
   proc->argv = argv;
   proc->exepath = exepath;
-  proc->cb = channel_process_exit_cb;
+  proc->cb = channel_proc_exit_cb;
   proc->events = chan->events;
   proc->detach = detach;
   proc->cwd = cwd;
   proc->env = env;
   proc->overlapped = overlapped;
 
-  char *cmd = xstrdup(process_get_exepath(proc));
+  char *cmd = xstrdup(proc_get_exepath(proc));
   bool has_out, has_err;
-  if (proc->type == kProcessTypePty) {
+  if (proc->type == kProcTypePty) {
     has_out = true;
     has_err = false;
   } else {
@@ -410,7 +411,7 @@ Channel *channel_job_start(char **argv, const char *exepath, CallbackReader on_s
 
   bool has_in = stdin_mode == kChannelStdinPipe;
 
-  int status = process_spawn(proc, has_in, has_out, has_err);
+  int status = proc_spawn(proc, has_in, has_out, has_err);
   if (status) {
     semsg(_(e_jobspawn), os_strerror(status), cmd);
     xfree(cmd);
@@ -639,7 +640,7 @@ static inline list_T *buffer_to_tv_list(const char *const buf, const size_t len)
   list_T *const l = tv_list_alloc(kListLenMayKnow);
   // Empty buffer should be represented by [''], encode_list_write() thinks
   // empty list is fine for the case.
-  tv_list_append_string(l, S_LEN(""));
+  tv_list_append_string(l, "", 0);
   if (len > 0) {
     encode_list_write(l, buf, len);
   }
@@ -760,7 +761,7 @@ void channel_reader_callbacks(Channel *chan, CallbackReader *reader)
   }
 }
 
-static void channel_process_exit_cb(Process *proc, int status, void *data)
+static void channel_proc_exit_cb(Proc *proc, int status, void *data)
 {
   Channel *chan = data;
   if (chan->term) {
@@ -847,7 +848,7 @@ static void term_write(const char *buf, size_t size, void *data)
 static void term_resize(uint16_t width, uint16_t height, void *data)
 {
   Channel *chan = data;
-  pty_process_resize(&chan->stream.pty, width, height);
+  pty_proc_resize(&chan->stream.pty, width, height);
 }
 
 static inline void term_delayed_free(void **argv)
@@ -867,7 +868,7 @@ static inline void term_delayed_free(void **argv)
 static void term_close(void *data)
 {
   Channel *chan = data;
-  process_stop(&chan->stream.proc);
+  proc_stop(&chan->stream.proc);
   multiqueue_put(chan->events, term_delayed_free, data);
 }
 
@@ -888,9 +889,9 @@ static void set_info_event(void **argv)
   save_v_event_T save_v_event;
   dict_T *dict = get_v_event(&save_v_event);
   Arena arena = ARENA_EMPTY;
-  Dictionary info = channel_info(chan->id, &arena);
+  Dict info = channel_info(chan->id, &arena);
   typval_T retval;
-  object_to_vim(DICTIONARY_OBJ(info), &retval, NULL);
+  object_to_vim(DICT_OBJ(info), &retval, NULL);
   assert(retval.v_type == VAR_DICT);
   tv_dict_add_dict(dict, S_LEN("info"), retval.vval.v_dict);
   tv_dict_set_keys_readonly(dict);
@@ -907,25 +908,25 @@ bool channel_job_running(uint64_t id)
   Channel *chan = find_channel(id);
   return (chan
           && chan->streamtype == kChannelStreamProc
-          && !process_is_stopped(&chan->stream.proc));
+          && !proc_is_stopped(&chan->stream.proc));
 }
 
-Dictionary channel_info(uint64_t id, Arena *arena)
+Dict channel_info(uint64_t id, Arena *arena)
 {
   Channel *chan = find_channel(id);
   if (!chan) {
-    return (Dictionary)ARRAY_DICT_INIT;
+    return (Dict)ARRAY_DICT_INIT;
   }
 
-  Dictionary info = arena_dict(arena, 8);
+  Dict info = arena_dict(arena, 8);
   PUT_C(info, "id", INTEGER_OBJ((Integer)chan->id));
 
   const char *stream_desc, *mode_desc;
   switch (chan->streamtype) {
   case kChannelStreamProc: {
     stream_desc = "job";
-    if (chan->stream.proc.type == kProcessTypePty) {
-      const char *name = pty_process_tty_name(&chan->stream.pty);
+    if (chan->stream.proc.type == kProcTypePty) {
+      const char *name = pty_proc_tty_name(&chan->stream.pty);
       PUT_C(info, "pty", CSTR_TO_ARENA_OBJ(arena, name));
     }
 
@@ -963,7 +964,7 @@ Dictionary channel_info(uint64_t id, Arena *arena)
 
   if (chan->is_rpc) {
     mode_desc = "rpc";
-    PUT_C(info, "client", DICTIONARY_OBJ(chan->rpc.info));
+    PUT_C(info, "client", DICT_OBJ(chan->rpc.info));
   } else if (chan->term) {
     mode_desc = "terminal";
     PUT_C(info, "buffer", BUFFER_OBJ(terminal_buf(chan->term)));
@@ -996,7 +997,7 @@ Array channel_all_info(Arena *arena)
 
   Array ret = arena_array(arena, ids.size);
   for (size_t i = 0; i < ids.size; i++) {
-    ADD_C(ret, DICTIONARY_OBJ(channel_info((uint64_t)ids.items[i], arena)));
+    ADD_C(ret, DICT_OBJ(channel_info((uint64_t)ids.items[i], arena)));
   }
   return ret;
 }

@@ -5,7 +5,6 @@ local clear, eq, eval, next_msg, ok, source = n.clear, t.eq, n.eval, n.next_msg,
 local command, fn, api = n.command, n.fn, n.api
 local matches = t.matches
 local sleep = vim.uv.sleep
-local spawn, nvim_argv = n.spawn, n.nvim_argv
 local get_session, set_session = n.get_session, n.set_session
 local nvim_prog = n.nvim_prog
 local is_os = t.is_os
@@ -33,10 +32,10 @@ describe('channels', function()
   end)
 
   pending('can connect to socket', function()
-    local server = spawn(nvim_argv, nil, nil, true)
+    local server = n.new_session(true)
     set_session(server)
     local address = fn.serverlist()[1]
-    local client = spawn(nvim_argv, nil, nil, true)
+    local client = n.new_session(true)
     set_session(client)
     source(init)
 
@@ -63,7 +62,7 @@ describe('channels', function()
 
   it('dont crash due to garbage in rpc #23781', function()
     local client = get_session()
-    local server = spawn(nvim_argv, nil, nil, true)
+    local server = n.new_session(true)
     set_session(server)
     local address = fn.serverlist()[1]
     set_session(client)
@@ -286,6 +285,37 @@ describe('channels', function()
 
     command("call rpcnotify(id, 'nvim_command', 'quit')")
     eq({ 'notification', 'exit', { 3, 0 } }, next_msg())
+  end)
+
+  it('stdio channel works with stdout redirected to file #30509', function()
+    t.write_file(
+      'Xstdio_write.vim',
+      [[
+        let chan = stdioopen({})
+        call chansend(chan, 'foo')
+        call chansend(chan, 'bar')
+        qall!
+      ]]
+    )
+    local fd = assert(vim.uv.fs_open('Xstdio_redir', 'w', 420))
+    local exit_code, exit_signal
+    local handle = vim.uv.spawn(nvim_prog, {
+      args = { '-u', 'NONE', '-i', 'NONE', '--headless', '-S', 'Xstdio_write.vim' },
+      -- Simulate shell redirection: "nvim ... > Xstdio_redir". #30509
+      stdio = { nil, fd, nil },
+    }, function(code, signal)
+      vim.uv.stop()
+      exit_code, exit_signal = code, signal
+    end)
+    finally(function()
+      handle:close()
+      vim.uv.fs_close(fd)
+      os.remove('Xstdio_write.vim')
+      os.remove('Xstdio_redir')
+    end)
+    vim.uv.run('default')
+    eq({ 0, 0 }, { exit_code, exit_signal })
+    eq('foobar', t.read_file('Xstdio_redir'))
   end)
 
   it('can use buffered output mode', function()

@@ -18,12 +18,8 @@ if(APPLE)
   list(APPEND DEPS_CMAKE_ARGS -D CMAKE_FIND_FRAMEWORK=${CMAKE_FIND_FRAMEWORK})
 endif()
 
-# Can be removed once minimum version is at least 3.15
-if(POLICY CMP0092)
-  list(APPEND DEPS_CMAKE_ARGS -D CMAKE_POLICY_DEFAULT_CMP0092=NEW)
-endif()
-
 find_program(CACHE_PRG NAMES ccache sccache)
+mark_as_advanced(CACHE_PRG)
 if(CACHE_PRG)
   set(CMAKE_C_COMPILER_LAUNCHER ${CMAKE_COMMAND} -E env CCACHE_SLOPPINESS=pch_defines,time_macros ${CACHE_PRG})
   list(APPEND DEPS_CMAKE_CACHE_ARGS -DCMAKE_C_COMPILER_LAUNCHER:STRING=${CMAKE_C_COMPILER_LAUNCHER})
@@ -32,6 +28,7 @@ endif()
 # MAKE_PRG
 if(UNIX)
   find_program(MAKE_PRG NAMES gmake make)
+  mark_as_advanced(MAKE_PRG)
   if(NOT MAKE_PRG)
     message(FATAL_ERROR "GNU Make is required to build the dependencies.")
   else()

@@ -1,9 +1,9 @@
 " Vim filetype plugin
 " Language:		Vim
 " Maintainer:		Doug Kearns <dougkearns@gmail.com>
-" Last Change:		2024 Apr 13
-" 			2024 May 23 by Riley Bruins <ribru17@gmail.com> ('commentstring')
+" Last Change:		2025 Jan 06
 " Former Maintainer:	Bram Moolenaar <Bram@vim.org>
+" Contributors:		Riley Bruins <ribru17@gmail.com> ('commentstring')
 
 " Only do this when not done yet for this buffer
 if exists("b:did_ftplugin")
@@ -67,9 +67,6 @@ if &tw == 0
   setlocal tw=78
 endif
 
-" Prefer Vim help instead of manpages.
-setlocal keywordprg=:help
-
 if !exists("no_plugin_maps") && !exists("no_vim_maps")
   let b:did_add_maps = 1
 
@@ -106,8 +103,8 @@ if exists("loaded_matchit")
 	\ '\<try\>:\%(\%(^\||\)\s*\)\@<=\<cat\%[ch]\>:\%(\%(^\||\)\s*\)\@<=\<fina\%[lly]\>:\%(\%(^\||\)\s*\)\@<=\<endt\%[ry]\>,' ..
 	\ '\<aug\%[roup]\s\+\%(END\>\)\@!\S:\<aug\%[roup]\s\+END\>,' ..
 	\ '\<class\>:\<endclass\>,' ..
-	\ '\<inte\%[rface]\>:\<endinterface\>,' ..
-	\ '\<enu\%[m]\>:\<endenum\>,'
+	\ '\<interface\>:\<endinterface\>,' ..
+	\ '\<enum\>:\<endenum\>'
 
   " Ignore syntax region commands and settings, any 'en*' would clobber
   " if-endif.
